@@ -163,6 +163,11 @@ WebR requires a modern browser that supports WebAssembly and Web Workers; startu
 3. Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` where applicable.
 4. Open a pull request describing the change and its verification.
 
+## License
+
+No separate open-source license has been specified for this project. Unless and until a license is added, the project's original code remains subject to applicable copyright law. Public visibility on GitHub does not, by itself, grant general permission to reuse, modify, or redistribute the code.
+
+Third-party dependencies and assets may have their own licenses.
 
 ## Acknowledgments and references
 
