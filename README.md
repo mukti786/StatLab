@@ -35,7 +35,7 @@ After adding captures, embed them here with Markdown image links. Do not use moc
 
 ## Live demo
 
-**Deployment pending.** No deployed URL is available yet.
+(https://stat-lab-ruddy.vercel.app/)
 
 ## Technology stack
 
