@@ -1,0 +1,5 @@
+source("r/probability_simulations.R")
+set.seed(42)
+coin_flips <- sample(c(0, 1), 1000, replace = TRUE)
+mean(coin_flips)
+table(coin_flips)
