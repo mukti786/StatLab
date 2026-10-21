@@ -23,7 +23,7 @@ The interface uses Recharts to display chart-ready counts and values computed in
 
 ## Screenshots
 
-No screenshots are included yet. To add genuine captures, run the app and capture these views at desktop and mobile widths:
+to be added 
 
 1. Dashboard: `public/screenshots/dashboard.png`
 2. Playground with a real R result: `public/screenshots/playground.png`
