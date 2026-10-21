@@ -35,7 +35,7 @@ After adding captures, embed them here with Markdown image links. Do not use moc
 
 ## Live demo
 
-(https://stat-lab-ruddy.vercel.app/)
+https://stat-lab-ruddy.vercel.app/
 
 ## Technology stack
 
