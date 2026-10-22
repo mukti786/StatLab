@@ -23,13 +23,25 @@ The interface uses Recharts to display chart-ready counts and values computed in
 
 ## Screenshots
 
-to be added 
+### 1. Dashboard
 
-1[1. Dashboard:](D:\StatLab\screenshots\Dashboard.png)
-![2. R Playground:](D:\StatLab\screenshots\R_playground.png)
-![3. Statistics lab:](D:\StatLab\screenshots\statistics_lab.png)
-4. Probability simulation:
-5. R-powered histogram: 
+![Dashboard](./screenshots/Dashboard.png)
+
+### 2. R Playground 
+
+![R Playground](./screenshots/R_playground.png)
+
+### 3. Statistics Lab
+
+![Statistics Lab](./screenshots/statistics_lab.png)
+
+### 4. Probability Simulation
+
+![Probability Simulation](./screenshots/probability.png)
+
+### 5. R-powered Histogram
+
+![R-powered Histogram](./screenshots/visualization.png)
 
 
 ## Live demo
