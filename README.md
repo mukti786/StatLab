@@ -25,9 +25,9 @@ The interface uses Recharts to display chart-ready counts and values computed in
 
 to be added 
 
-1. Dashboard: `public/screenshots/dashboard.png`
-2. Playground with a real R result: `public/screenshots/playground.png`
-3. Statistics lab: `public/screenshots/statistics.png`
+1. Dashboard: `D:\StatLab\screenshots\Dashboard.png`
+2. Playground with a real R result: `D:\StatLab\screenshots\R_playground.png`
+3. Statistics lab: `D:\StatLab\screenshots\statistics_lab.png`
 4. Probability simulation: `public/screenshots/probability.png`
 5. R-powered histogram: `public/screenshots/visualization.png`
 
