@@ -23,26 +23,7 @@ The interface uses Recharts to display chart-ready counts and values computed in
 
 ## Screenshots
 
-### 1. Dashboard
-
-![Dashboard](./screenshots/Dashboard.png)
-
-### 2. R Playground 
-
-![R Playground](./screenshots/R_playground.png)
-
-### 3. Statistics Lab
-
-![Statistics Lab](./screenshots/statistics_lab.png)
-
-### 4. Probability Simulation
-
-![Probability Simulation](./screenshots/probability.png)
-
-### 5. R-powered Histogram
-
-![R-powered Histogram](./screenshots/visualization.png)
-
+Screenshots from the previous dashboard design are retained in `screenshots/`; they do not yet show this visual refresh. Replace them with fresh captures of the current dashboard, R playground, statistics lab, probability lab, and R-generated visualization before sharing portfolio screenshots.
 
 ## Live demo
 
