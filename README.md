@@ -13,21 +13,24 @@ StatLab was developed as an independent student learning and engineering project
 - Client-side R execution through WebR, including printed results, warnings, messages, errors, and base R graphics where supported.
 - R playground with starter examples, syntax-colored editor, Ctrl/Cmd+Enter, copy, reset, clear output, locally remembered code, and `.R` download.
 - Interactive lessons for R fundamentals, vectors and matrices, and data frames.
+- A guided, runnable 20-lesson path from first expressions through data manipulation and introductory statistics.
 - R-backed descriptive statistics, seeded dice simulation, and histogram bin calculations.
 - Dataset explorer with teaching datasets, search, and local CSV import/export (2 MB import limit).
-- Five beginner exercises checked by executing their conditions in R.
-- Locally stored theme, run count, recent activity, and completed challenge progress. No account is required.
+- Nine R-checked challenges across beginner, intermediate, and advanced levels, with hints, solutions, and explanations.
+- Versioned browser-local learning state for lesson and challenge completion, recent modules, activity, run count, theme, and editor code. Older unversioned progress migrates safely. No account is required.
 - Responsive dark/light interface with a mobile navigation drawer.
 
-The interface uses Recharts to display chart-ready counts and values computed in R. The charts themselves are rendered in the browser. CSV import is browser-local and imported tables are currently browsable/exportable; the built-in R-backed analyses use the included R teaching datasets.
+The interface uses Recharts to display chart-ready counts and values computed in R. The charts themselves are rendered in the browser. CSV import is browser-local; imported tables can be inspected, exported, and converted into real R data frames for `str()` and `summary()` analysis.
 
 ## Screenshots
 
-Screenshots from the previous dashboard design are retained in `screenshots/`; they do not yet show this visual refresh. Replace them with fresh captures of the current dashboard, R playground, statistics lab, probability lab, and R-generated visualization before sharing portfolio screenshots.
+The files in `screenshots/` show the previous dashboard and should not be used as representative captures of the current interface. Fresh dashboard, playground, and learning-module screenshots still need to be captured before presenting the project publicly.
 
-## Live demo
+## Previously configured deployment URL
 
 https://stat-lab-ruddy.vercel.app/
+
+This URL was present in the repository before the audit; the deployment was not checked and may be out of date.
 
 ## Technology stack
 
@@ -36,7 +39,7 @@ https://stat-lab-ruddy.vercel.app/
 - **Tailwind CSS 4** is configured alongside a small custom CSS design system.
 - **WebR 0.6.0** runs the R interpreter compiled to WebAssembly in a browser worker. There is no R server in the execution path.
 - **Recharts** renders charts from values calculated by R; **Lucide** supplies icons.
-- **Zod** validates CSV table structure; **Vitest** tests CSV handling.
+  - **Zod** validates CSV table structure; **Vitest** tests CSV handling and local progress storage.
 
 The frontend handles navigation, editor input, local persistence, and presentation. WebR evaluates user code and the included R helpers in the browser. The UI formats the runtime's captured output and displays returned graphics; it does not fabricate substitute results.
 
@@ -54,7 +57,7 @@ flowchart LR
   UI <--> Local[Browser localStorage]
 ```
 
-At page startup, the client-only adapter dynamically imports WebR, initializes its worker, then fetches the published R source modules from `/r/` and evaluates them in the runtime. Playground runs use WebR's `Shelter.captureR()` with stream and graphics capture. A small R-side console wrapper parses and evaluates expressions sequentially, prints visible values, and turns R parse/runtime conditions into readable output. Statistical screens call the same R helper functions and map their returned values to UI output or chart series. Errors during initialization are shown in the runtime status; failed R expressions appear as errors and do not produce a success state. Each capture shelter is purged after the run.
+At page startup, the client-only adapter dynamically imports WebR, initializes its worker, then fetches the published R source modules from `/r/` and evaluates them in the runtime. Playground runs use WebR's `Shelter.captureR()` with stream and graphics capture. A small R-side console wrapper parses and evaluates expressions sequentially, prints visible values, and turns R parse/runtime conditions into readable output. Calls that mutate the shared R session are queued so overlapping UI actions cannot evaluate concurrently. Statistical screens call the same R helper functions and map their returned values to UI output or chart series. Errors during initialization are shown in the runtime status; failed R expressions appear as errors and do not produce a success state. Each capture shelter is purged after the run.
 
 WebR runs locally in the browser and does not send code or CSV contents to a StatLab backend. Browser-local storage is used for learning preferences/activity and the last playground code. Clearing site data removes this local information.
 
@@ -87,6 +90,8 @@ tests/                  Vitest CSV tests
 
 The authored `.R` files contain helper implementations used by lessons and the statistics, probability, dataset, and visualization workflows. `public/r/` is copied from `r/` before development and production builds; edit the authored source under `r/`.
 
+Learning workspaces are switched inside one persistent browser application and mirrored in the URL hash, so links such as `/#r-playground` or `/#statistics-lab` open the matching section while keeping the same WebR session alive.
+
 ## Prerequisites and local development
 
 - Node.js 20.9 or later (required by the selected Next.js release).
@@ -111,7 +116,16 @@ npm run build
 npm start
 ```
 
-`npm run build` first copies `r/*.R` to `public/r/`. The Node runtime script is available as `npm run test:runtime`; on Windows, WebR 0.6.0 currently fails to construct its Node worker from the package's worker URL (`ERR_WORKER_PATH`). The real-browser runtime has been verified in the app; this Node-only limitation does not affect browser execution. The native R script may be run with `Rscript r/tests/test-statlab.R` if R is installed.
+`npm run build` first copies `r/*.R` to `public/r/`. The Node runtime script is available as `npm run test:runtime`; it currently fails on Windows Node 24 because WebR 0.6.0 passes a `file://` worker URL to Node's `Worker` constructor (`ERR_WORKER_PATH`). This Node-only limitation does not affect the browser runtime, which is verified manually in StatLab. The native R script may be run with `Rscript r/tests/test-statlab.R` if R is installed.
+
+## Deploying to Vercel
+
+1. Import the GitHub repository into Vercel and select the repository root as the project root.
+2. Keep the detected **Next.js** framework preset and default `.next` output handling.
+3. Use `npm install` for dependencies and `npm run build` for the build command. No environment variables or backend services are required.
+4. Deploy, then verify the site on its deployed URL in a browser. In particular, confirm WebR initialization and that its worker and WebAssembly files load with the configured cross-origin isolation headers.
+
+No production deployment was performed or checked during this audit.
 
 ## Running R code
 
@@ -125,28 +139,27 @@ WebR is a real R runtime compiled to WebAssembly. It supports normal base R expr
 
 ## Tests and verification
 
-- `npm test` runs the Vitest suite for CSV parsing, validation, and round trips.
+- `npm test` runs the Vitest suite for CSV parsing, validation, R string escaping, round trips, and versioned progress storage/migration.
 - `npm run lint` runs ESLint.
 - `npm run typecheck` runs TypeScript strict checking.
 - `npm run build` compiles the production Next.js app and prepares served R files.
 - `npm run test:runtime` is configured for direct WebR checks in Node, but has the Windows worker URL limitation described above.
 - `Rscript r/tests/test-statlab.R` is a native R test script and requires an installed R distribution.
 
-The playground has also been exercised in a real browser using WebR: the required vector `mean()`/`sd()` example returned 30 and 15.81139; a data-frame score mean returned 83.33333; a seeded 1,000-sample Bernoulli mean returned 0.501 in that runtime; and a missing object displayed an R error. Simulation results are properties of the actual seeded R runtime, not hardcoded UI values.
+The playground and lesson code have been exercised in a real browser using WebR: vector `mean()`/`sd()` returned 30 and 15.81139; the first lesson returned 5 and 4.666667; repeated runs retained the same R environment; and an undefined object displayed an R error. Descriptive statistics, correlation, a one-sample t-test, regression, dice simulation, histogram, boxplot, built-in datasets, and a quoted multiline CSV converted to an R data frame were also exercised. A challenge rejected an invalid answer and accepted a valid answer. The local learning trail restored runs, module visits, lesson and challenge progress after reload. Simulation results come from the actual seeded R runtime, not hardcoded UI values.
 
 
 ## Browser compatibility and limitations
 
-WebR requires a modern browser that supports WebAssembly and Web Workers; startup downloads runtime assets and needs network access. Runtime startup time and memory use depend on device/browser. Only packages built and made available for WebAssembly can work; desktop R packages and system-dependent operations are not generally interchangeable. The current interface does not install packages, interrupt an active R computation, or persist the R session across reloads. Avoid unbounded loops. Charts use Recharts with R-produced values rather than a graphics device for those modules. Imported CSV files are parsed locally and currently do not automatically become R data frames.
+WebR requires a modern browser that supports WebAssembly and Web Workers; startup downloads runtime assets and needs network access. Runtime startup time and memory use depend on device/browser. Only packages built and made available for WebAssembly can work; desktop R packages and system-dependent operations are not generally interchangeable. The current interface does not install packages, interrupt an active R computation, or persist the R session across reloads. Avoid unbounded loops. Charts use Recharts with R-produced values rather than a graphics device for those modules. Imported CSV files are parsed in-browser and can be sent to WebR as data frames; the bridge quotes values as R string literals and keeps CSV headers as data rather than executable names.
 
 ## Roadmap
 
-- Connect imported CSV tables to safe R-side data-frame analysis.
 - Add an explicit stop/reset control for active computations if supported by the runtime lifecycle.
 - Add broader component and browser tests against WebR in a real browser.
 - Capture and include real desktop/mobile screenshots.
 - Deploy to Vercel and verify worker, WebAssembly, and isolation headers on the production domain.
-- Add more lessons and visual explanations for inference and regression.
+- Expand the probability and visualization labs beyond their current core experiments and add more built-in teaching datasets.
 
 ## Contributing
 

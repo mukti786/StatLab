@@ -1018,6 +1018,8 @@ tbody tr:hover td { background: var(--panel2); }
   color: var(--soft);
 }
 .about-row b { color: var(--accent); margin-right: 10px; font-weight: 600; }
+.about-row a { display: inline-flex; align-items: center; gap: 4px; color: var(--cyan); text-decoration: none; }
+.about-row a:hover { text-decoration: underline; }
 
 /* ═══════════════════════════════════════════════════════════
    FOOTER
@@ -1033,6 +1035,21 @@ tbody tr:hover td { background: var(--panel2); }
   color: var(--muted);
 }
 .footer-mark { display: inline-flex; align-items: center; gap: 7px; }
+
+.not-found {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+.not-found-mark { margin-bottom: 18px; color: #a78bfa; font-size: 14px; font-weight: 700; letter-spacing: .16em; }
+.not-found h1 { margin: 8px 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.16; }
+.not-found > p:not(.eyebrow) { max-width: 48ch; color: var(--muted); font-size: 15px; }
+.not-found .primary { margin-top: 14px; text-decoration: none; }
 
 /* ═══════════════════════════════════════════════════════════
    MOBILE DRAWER
@@ -1577,7 +1594,7 @@ tbody tr:hover td { background: var(--panel2); }
 }
 .activity-numbers {
   display: grid;
-  grid-template-columns: auto auto minmax(100px, 1fr);
+  grid-template-columns: auto auto auto minmax(100px, 1fr);
   gap: 22px;
   align-items: center;
   margin-top: 12px;
@@ -1613,6 +1630,28 @@ tbody tr:hover td { background: var(--panel2); }
   font-size: 13px;
   line-height: 1.85;
 }
+.recent-modules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #222d40;
+  font-size: 12px;
+  color: #8390a5;
+}
+.recent-modules button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  border: 1px solid #273147;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--soft);
+}
+.recent-modules button:hover { border-color: #7e70c5; color: var(--text); }
 
 /* ═══════════════════════════════════════════════════════════
    LIGHT THEME
@@ -1643,6 +1682,8 @@ tbody tr:hover td { background: var(--panel2); }
 .light .nav-button.selected { background: #f0eefb; color: #5e4bc4; }
 .light .hero-copy h1   { color: #182133; }
 .light .hero-copy h1 em { color: #6957c9; }
+.light .recent-modules { border-color: #dce2ed; color: #66738a; }
+.light .recent-modules button { border-color: #d6deeb; color: #35435c; }
 .light .hero-copy > p  { color: #627089; }
 .light .hero-art {
   border-color: #dce1ed;
@@ -1775,7 +1816,7 @@ tbody tr:hover td { background: var(--panel2); }
   .home-bottom { margin-top: 24px; }
   .first-run-callout { align-items: flex-start; flex-wrap: wrap; }
   .onboarding-action { margin-left: 56px; }
-  .activity-numbers { gap: 16px; }
+  .activity-numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 
   /* Core layouts */
   .split-layout    { grid-template-columns: 1fr; }

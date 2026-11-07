@@ -14,8 +14,10 @@ import {
   ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { WebR as WebRInstance } from 'webr';
-import { executeR, executeRArray, initializeWebR, type ROutput } from '@/lib/webr-client';
-import { parseCsv, stringifyCsv, type CsvRow } from '@/lib/csv';
+import { executeR, initializeWebR, type ROutput } from '@/lib/webr-client';
+import { parseCsv, rStringLiteral, stringifyCsv, type CsvRow } from '@/lib/csv';
+import { readProgressState, writeProgressPatch } from '@/lib/progress';
+import { fundamentalsLessons } from '@/lib/r-fundamentals';
 
 // ─── Types & navigation ───────────────────────────────────────────────────────
 
@@ -71,39 +73,76 @@ const examples = [
 
 const exercises = [
   {
-    title: 'Print a result',
-    goal: 'Create variables x = 7 and y = 5, then print their sum (should equal 12).',
-    hint: 'Use the <- assignment operator and the print() function.',
-    starter: 'x <- 7\ny <- 5\nprint(x + y)',
-    check: 'stopifnot(isTRUE(all.equal(x + y, 12)))',
+    title: 'Add two variables', difficulty: 'Beginner', topic: 'Variables',
+    goal: 'Create x = 7 and y = 5, then store their sum in total (12).', expected: 'total must equal 12.',
+    hint: 'Use <- to assign each value, then add x + y.', starter: '# Create x and y, then save their sum in total',
+    solution: 'x <- 7\ny <- 5\ntotal <- x + y',
+    explanation: 'The assignment operator stores a value under a name. Once x and y exist, adding them produces 12, which is assigned to total.',
+    check: 'base::stopifnot(base::exists("total"), base::isTRUE(base::all.equal(total, 12)))',
   },
   {
-    title: 'Find a vector mean',
-    goal: 'Create a vector named "scores" containing 4, 8, 12, then calculate its mean (should be 8).',
-    hint: 'Use c() to create the vector and mean() to find the average.',
-    starter: 'scores <- c(4, 8, 12)\nmean(scores)',
-    check: 'stopifnot(isTRUE(all.equal(mean(scores), 8)))',
+    title: 'Find a vector mean', difficulty: 'Beginner', topic: 'Vectors',
+    goal: 'Create scores containing 4, 8, 12 and store its mean in average (8).', expected: 'average must equal 8.',
+    hint: 'Use c() to create the vector and mean() to find the average.', starter: '# Create scores and calculate average',
+    solution: 'scores <- c(4, 8, 12)\naverage <- mean(scores)',
+    explanation: 'c() combines the values into one numeric vector. mean() adds them and divides by the number of values.',
+    check: 'base::stopifnot(base::exists("average"), base::isTRUE(base::all.equal(average, 8)))',
   },
   {
-    title: 'Sort values',
-    goal: 'Create a vector named "values" containing 9, 2, 5, then sort it in ascending order (2, 5, 9).',
-    hint: 'Use sort() — it returns the elements in ascending order by default.',
-    starter: 'values <- c(9, 2, 5)\nsort(values)',
-    check: 'stopifnot(identical(sort(values), c(2, 5, 9)))',
+    title: 'Sort values', difficulty: 'Beginner', topic: 'Vectors',
+    goal: 'Create values containing 9, 2, 5, then save the ascending result as sorted_values.', expected: 'sorted_values must be 2, 5, 9 in that order.',
+    hint: 'Use sort() — it returns the elements in ascending order by default.', starter: '# Create values and save the sorted result',
+    solution: 'values <- c(9, 2, 5)\nsorted_values <- sort(values)',
+    explanation: 'sort() returns a new vector ordered from smallest to largest; assigning it keeps the result available for later code.',
+    check: 'base::stopifnot(base::exists("sorted_values"), base::identical(sorted_values, c(2, 5, 9)))',
   },
   {
-    title: 'Measure spread',
-    goal: 'Create "measurements" containing 2, 4, 6 and calculate its sample standard deviation (should be 2).',
-    hint: 'R\'s sd() function computes the sample standard deviation.',
-    starter: 'measurements <- c(2, 4, 6)\nsd(measurements)',
-    check: 'stopifnot(isTRUE(all.equal(sd(measurements), 2)))',
+    title: 'Measure sample spread', difficulty: 'Beginner', topic: 'Statistics',
+    goal: 'Create measurements containing 2, 4, 6 and store the sample standard deviation as spread (2).', expected: 'spread must equal 2.',
+    hint: 'R\'s sd() function computes the sample standard deviation.', starter: '# Create measurements and calculate spread',
+    solution: 'measurements <- c(2, 4, 6)\nspread <- sd(measurements)',
+    explanation: 'R’s sd() uses the sample formula with denominator n − 1. For 2, 4, 6, the result is 2.',
+    check: 'base::stopifnot(base::exists("spread"), base::isTRUE(base::all.equal(spread, 2)))',
   },
   {
-    title: 'Explore a sequence',
-    goal: 'Use seq() to generate the integers 1 through 5.',
-    hint: 'seq(from, to) generates a sequence from one number to another.',
-    starter: 'seq(1, 5)',
-    check: 'stopifnot(identical(seq(1, 5), 1:5))',
+    title: 'Build a sequence', difficulty: 'Beginner', topic: 'Functions',
+    goal: 'Use seq() to save the integers 1 through 5 in a vector named steps.', expected: 'steps must contain 1, 2, 3, 4, 5.',
+    hint: 'seq(from, to) generates a sequence from one number to another.', starter: '# Use seq() to create steps',
+    solution: 'steps <- seq(from = 1, to = 5)',
+    explanation: 'seq() creates a regular sequence. With the default step of 1, the values include both the start and end points.',
+    check: 'base::stopifnot(base::exists("steps"), base::identical(steps, 1:5))',
+  },
+  {
+    title: 'Filter a data frame', difficulty: 'Intermediate', topic: 'Data frames',
+    goal: 'Build students with scores 72, 85, 91, then keep rows with score >= 80 in high_scores.', expected: 'high_scores must contain scores 85 and 91.',
+    hint: 'Use data.frame() and subset(students, score >= 80).', starter: '# Create students, then filter the higher scores',
+    solution: 'students <- data.frame(score = c(72, 85, 91))\nhigh_scores <- subset(students, score >= 80)',
+    explanation: 'A logical condition selects rows. subset() returns only observations whose score meets the threshold.',
+    check: 'base::stopifnot(base::exists("high_scores"), base::identical(high_scores$score, c(85, 91)))',
+  },
+  {
+    title: 'Handle missing data', difficulty: 'Intermediate', topic: 'Data cleaning',
+    goal: 'Create readings = 4, NA, 8, 12 and calculate the mean ignoring missing values into observed_mean.', expected: 'observed_mean must equal 8.',
+    hint: 'Pass na.rm = TRUE to mean().', starter: '# Create readings and calculate a mean that removes NA values',
+    solution: 'readings <- c(4, NA, 8, 12)\nobserved_mean <- mean(readings, na.rm = TRUE)',
+    explanation: 'NA means unknown. na.rm = TRUE removes missing entries for this calculation; it does not change the original vector.',
+    check: 'base::stopifnot(base::exists("observed_mean"), base::isTRUE(base::all.equal(observed_mean, 8)))',
+  },
+  {
+    title: 'Write a summary function', difficulty: 'Advanced', topic: 'Functions',
+    goal: 'Write summarize_range(x) that returns a named list with the mean and range of x.', expected: 'For c(2, 4, 8), mean is 14/3 and range is 6.',
+    hint: 'Return list(mean = mean(x), range = diff(range(x))).', starter: '# Define summarize_range(x) and return mean and range',
+    solution: 'summarize_range <- function(x) {\n  list(mean = mean(x), range = diff(range(x)))\n}',
+    explanation: 'A function packages reusable calculations. A named list gives each result a clear label and can hold separate values.',
+    check: 'base::stopifnot(base::exists("summarize_range"), base::is.function(summarize_range), base::isTRUE(base::all.equal(summarize_range(c(2, 4, 8))$mean, 14/3)), base::isTRUE(base::all.equal(summarize_range(c(2, 4, 8))$range, 6)))',
+  },
+  {
+    title: 'Multiply matrices', difficulty: 'Advanced', topic: 'Matrices',
+    goal: 'Create a 2 x 2 matrix containing 1, 2, 3, 4 and store m multiplied by itself as squared.', expected: 'R fills matrices by column; squared[1, 1] must be 7.',
+    hint: 'Use matrix(1:4, nrow = 2) and the %*% operator.', starter: '# Create m, then multiply it by itself with %*%',
+    solution: 'm <- matrix(1:4, nrow = 2)\nsquared <- m %*% m',
+    explanation: 'In R, matrix() fills columns first. %*% performs matrix multiplication; * would multiply matching cells instead.',
+    check: 'base::stopifnot(base::exists("squared"), base::is.matrix(squared), base::identical(base::dim(squared), c(2L, 2L)), base::isTRUE(base::all.equal(squared[1, 1], 7)))',
   },
 ];
 
@@ -154,25 +193,6 @@ function Chart({ data, line = false, color = '#8170e8' }: { data: ChartDatum[]; 
   );
 }
 
-function ScatterPlot({ data, xLabel, yLabel }: { data: ScatterDatum[]; xLabel: string; yLabel: string }) {
-  return (
-    <div className="chart">
-      <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart margin={{ top: 5, right: 10, bottom: 20, left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-          <XAxis dataKey="x" name={xLabel} tick={{ fill: 'var(--muted)', fontSize: 11 }} label={{ value: xLabel, position: 'bottom', fill: 'var(--muted)', fontSize: 11 }} />
-          <YAxis dataKey="y" name={yLabel} tick={{ fill: 'var(--muted)', fontSize: 11 }} label={{ value: yLabel, angle: -90, position: 'insideLeft', fill: 'var(--muted)', fontSize: 11 }} />
-          <Tooltip
-            contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-            cursor={{ strokeDasharray: '3 3' }}
-          />
-          <Scatter data={data} fill="#8170e8" opacity={0.8} />
-        </ScatterChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 function Heading({ title, description, icon }: { title: string; description: string; icon: ReactNode }) {
   return (
     <div className="page-title">
@@ -204,6 +224,10 @@ function Output({ items }: { items: ROutput[] }) {
   );
 }
 
+function hasSuccessfulOutput(items: ROutput[]) {
+  return items.length > 0 && !items.some(item => item.type === 'error');
+}
+
 function InfoBox({ children }: { children: ReactNode }) {
   return <div className="info-box">{children}</div>;
 }
@@ -214,6 +238,16 @@ function parseNumeric(text: string) {
     throw new Error('Enter valid numeric values separated by commas or spaces.');
   if (nums.length > 10000) throw new Error('Please use 10,000 values or fewer.');
   return nums;
+}
+
+function parseRNumberMarker(output: ROutput[], marker: string): number[] {
+  const line = output.find(item => item.text.includes(marker));
+  const payload = line?.text.split(marker).pop()?.trim();
+  if (!payload) throw new Error('R did not return the requested chart values.');
+  const values = payload.split(',').map(Number);
+  if (!values.length || values.some(value => !Number.isFinite(value)))
+    throw new Error('R returned invalid chart values.');
+  return values;
 }
 
 function LessonCode({ code }: { code: string }) {
@@ -301,8 +335,11 @@ export default function StatLabApp() {
   const [challenge,         setChallenge]         = useState(0);
   const [challengeCode,     setChallengeCode]     = useState(exercises[0].starter);
   const [challengeFeedback, setChallengeFeedback] = useState('');
+  const [solutionVisible,   setSolutionVisible]   = useState(false);
   const [progress,          setProgress]          = useState<number[]>([]);
+  const [completedLessons,  setCompletedLessons]  = useState<number[]>([]);
   const [activity,          setActivity]          = useState<string[]>([]);
+  const [recentModules,     setRecentModules]     = useState<Module[]>([]);
 
   // ── Dashboard experiment ───────────────────────────────────────────────────
   const [experimentMode,    setExperimentMode]    = useState<'normal' | 'dice'>('normal');
@@ -318,14 +355,33 @@ export default function StatLabApp() {
   // ── Restore persisted preferences ─────────────────────────────────────────
   useEffect(() => {
     requestAnimationFrame(() => {
-      const pref = safeGet('statlab-theme');
-      if (pref) setDark(pref !== 'light');
-      const savedCode = safeGet('statlab-code');
-      if (savedCode) setCode(savedCode);
-      setRuns(Number(safeGet('statlab-runs') || 0));
-      setProgress(safeJson('statlab-progress', []));
-      setActivity(safeJson('statlab-activity', []));
+      const saved = readProgressState();
+      setDark(saved.theme !== 'light');
+      if (saved.playgroundCode) setCode(saved.playgroundCode);
+      setRuns(saved.runs);
+      setProgress(saved.completedChallenges.filter(index => index < exercises.length));
+      setCompletedLessons(saved.completedLessons.filter(index => index < fundamentalsLessons.length));
+      setActivity(saved.activity);
+      setRecentModules(saved.recentModules.filter((name): name is Module => navigation.some(item => item.name === name)));
+      writeProgressPatch(saved);
     });
+  }, []);
+
+  // Give each learning workspace a bookmarkable hash route while keeping the
+  // shared R session and editor mounted during client-side navigation.
+  useEffect(() => {
+    const syncFromLocation = () => {
+      const slug = window.location.hash.slice(1);
+      const route = navigation.find(item => item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === slug);
+      if (route) setActive(route.name);
+    };
+    syncFromLocation();
+    window.addEventListener('popstate', syncFromLocation);
+    window.addEventListener('hashchange', syncFromLocation);
+    return () => {
+      window.removeEventListener('popstate', syncFromLocation);
+      window.removeEventListener('hashchange', syncFromLocation);
+    };
   }, []);
 
   // ── Boot WebR ──────────────────────────────────────────────────────────────
@@ -355,13 +411,22 @@ export default function StatLabApp() {
   );
 
   // ── Navigation helper ──────────────────────────────────────────────────────
-  const go = useCallback((m: Module) => { setActive(m); setMobileOpen(false); }, []);
+  const go = useCallback((m: Module) => {
+    setActive(m); setMobileOpen(false);
+    const slug = m.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (window.location.hash !== `#${slug}`) window.history.pushState(null, '', `#${slug}`);
+    setRecentModules(old => {
+      const next = [m, ...old.filter(item => item !== m)].slice(0, 8);
+      writeProgressPatch({ recentModules: next });
+      return next;
+    });
+  }, []);
 
   // ── Activity log ───────────────────────────────────────────────────────────
   const saveActivity = (label: string) => {
     setActivity(old => {
       const next = [`${new Date().toLocaleString()}: ${label}`, ...old].slice(0, 6);
-      safeSet('statlab-activity', JSON.stringify(next));
+      writeProgressPatch({ activity: next });
       return next;
     });
   };
@@ -374,16 +439,16 @@ export default function StatLabApp() {
     }
     if (source.length > 50000) { setError('Code is limited to 50,000 characters per run.'); return; }
     setRunning(true); setError(''); setOutput([]); setImages([]); setDuration(null);
-    safeSet('statlab-code', source);
+    writeProgressPatch({ playgroundCode: source });
     try {
       const result = await executeR(source, runtime);
       setOutput(result.output); setImages(result.images); setDuration(result.durationMs);
-      setRuns(n => { safeSet('statlab-runs', String(n + 1)); return n + 1; });
+      setRuns(n => { const next = n + 1; writeProgressPatch({ runs: next }); return next; });
       saveActivity('R program run');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'R execution failed. See the runtime status and try again.');
     } finally { setRunning(false); }
-  }, [code, runtime, runtimeStatus, runtimeMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [code, runtime, runtimeStatus, runtimeMessage]);
 
   // ── Dataset analysis ───────────────────────────────────────────────────────
   const runDataset = async (
@@ -435,7 +500,7 @@ export default function StatLabApp() {
       const vx = `c(${px.join(', ')})`;
       const vy = `c(${py.join(', ')})`;
       const result = await executeR(
-        `x <- ${vx}\ny <- ${vy}\ncat("Pearson correlation:", round(statlab_correlation(x, y), 4), "\\n")\ncat("Spearman correlation:", round(statlab_correlation(x, y, method = \\"spearman\\"), 4), "\\n")\ncat("n:", length(x), "pairs\\n")\ncor.test(x, y)`,
+        `x <- ${vx}\ny <- ${vy}\ncat("Pearson correlation:", round(statlab_correlation(x, y), 4), "\\n")\ncat("Spearman correlation:", round(statlab_correlation(x, y, method = "spearman"), 4), "\\n")\ncat("n:", length(x), "pairs\\n")\ncor.test(x, y)`,
         runtime,
       );
       setCorrOut(result.output);
@@ -504,14 +569,16 @@ export default function StatLabApp() {
     setProbN(n);
     try {
       const result = await executeR(
-        `dice <- statlab_simulate_dice(${n}, seed = ${Math.floor(probSeed)})\ncat("Rolls:", length(dice), "\\n")\nprint(table(dice))\ncat("\\nEmpirical mean:", round(mean(dice), 4), "\\nTheoretical mean: 3.5\\n")\ncat("Empirical SD:   ", round(sd(dice), 4), "\\nTheoretical SD:  ", round(sqrt(35/12), 4))`,
+        `dice <- statlab_simulate_dice(${n}, seed = ${Math.floor(probSeed)})\ncat("Rolls:", length(dice), "\\n")\nprint(table(dice))\ncat("\\nEmpirical mean:", round(mean(dice), 4), "\\nTheoretical mean: 3.5\\n")\ncat("Empirical SD:   ", round(sd(dice), 4), "\\nTheoretical SD:  ", round(sqrt(35/12), 4), "\\n")\ncat("STATLAB_DICE_COUNTS:", paste(as.integer(table(factor(dice, levels = 1:6))), collapse = ","), "\\n")`,
         runtime,
       );
       setProbOut(result.output);
-      const hist = await executeRArray(`as.integer(table(factor(dice, levels = 1:6)))`, runtime);
-      setProbChartData(hist.map((value, i) => ({ label: `Face ${i + 1}`, value: Number(value) })));
+      const hist = parseRNumberMarker(result.output, 'STATLAB_DICE_COUNTS:');
+      if (hist.length !== 6) throw new Error('R returned an incomplete six-face frequency table.');
+      setProbChartData(hist.map((value, i) => ({ label: `Face ${i + 1}`, value })));
       saveActivity(`Seeded die simulation · ${n.toLocaleString()} trials`);
     } catch (e) {
+      setProbChartData([]);
       setProbOut([{ type: 'error', text: e instanceof Error ? e.message : 'Simulation failed' }]);
     }
   };
@@ -522,15 +589,20 @@ export default function StatLabApp() {
     try {
       const parsed = parseNumeric(values);
       const vector = `c(${parsed.join(', ')})`;
-      const bins = await executeRArray(`statlab_histogram_data(${vector})$count`, runtime);
-      const mids = await executeRArray(`statlab_histogram_data(${vector})$midpoint`, runtime);
-      const r    = await executeR(`statlab_histogram_data(${vector})`, runtime);
+      const r = await executeR(
+        `h <- statlab_histogram_data(${vector})\ncat("STATLAB_HIST_COUNTS:", paste(as.integer(h$count), collapse = ","), "\\n")\ncat("STATLAB_HIST_MIDPOINTS:", paste(sprintf("%.3f", h$midpoint), collapse = ","), "\\n")\nh`,
+        runtime,
+      );
+      const bins = parseRNumberMarker(r.output, 'STATLAB_HIST_COUNTS:');
+      const mids = parseRNumberMarker(r.output, 'STATLAB_HIST_MIDPOINTS:');
+      if (bins.length !== mids.length) throw new Error('R returned inconsistent histogram bins.');
       setVizChartData(
-        bins.map((value, i) => ({ label: Number(mids[i]).toFixed(1), value: Number(value) })),
+        bins.map((value, i) => ({ label: mids[i].toFixed(1), value })),
       );
       setVizOut(r.output);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to compute histogram in R');
+      setVizChartData([]);
+      setVizOut([{ type: 'error', text: e instanceof Error ? e.message : 'Unable to compute histogram in R' }]);
     }
   };
 
@@ -540,14 +612,16 @@ export default function StatLabApp() {
     try {
       const parsed = parseNumeric(values);
       const vector = `c(${parsed.join(', ')})`;
-      const stats  = await executeRArray(`statlab_boxplot_data(${vector})`, runtime);
-      const r      = await executeR(
-        `x <- ${vector}\ncat("Min:", min(x), "\\n")\ncat("Q1 (25th pct):", quantile(x, 0.25), "\\n")\ncat("Median:", median(x), "\\n")\ncat("Q3 (75th pct):", quantile(x, 0.75), "\\n")\ncat("Max:", max(x), "\\n")\ncat("IQR:", IQR(x))`,
+      const r = await executeR(
+        `x <- ${vector}\nstats <- statlab_boxplot_data(x)\ncat("STATLAB_BOXPLOT:", paste(sprintf("%.10g", stats), collapse = ","), "\\n")\ncat("Min:", min(x), "\\n")\ncat("Q1 (25th pct):", quantile(x, 0.25), "\\n")\ncat("Median:", median(x), "\\n")\ncat("Q3 (75th pct):", quantile(x, 0.75), "\\n")\ncat("Max:", max(x), "\\n")\ncat("IQR:", IQR(x))`,
         runtime,
       );
-      setBoxStats(stats.map(Number));
+      const stats = parseRNumberMarker(r.output, 'STATLAB_BOXPLOT:');
+      if (stats.length !== 5) throw new Error('R returned an incomplete five-number summary.');
+      setBoxStats(stats);
       setVizOut(r.output);
     } catch (e) {
+      setBoxStats([]);
       setVizOut([{ type: 'error', text: e instanceof Error ? e.message : 'Boxplot failed' }]);
     }
   };
@@ -579,16 +653,20 @@ export default function StatLabApp() {
   const runCsvAnalysis = async () => {
     if (!runtime || tableRows.length === 0) return;
     const cols = Object.keys(tableRows[0]);
-    // Build an R data.frame from the in-memory table rows
-    const rLines = cols.map(col => {
-      const vals = tableRows.map(r => {
-        const v = r[col];
-        return (v === null || v === undefined) ? 'NA' : typeof v === 'number' ? String(v) : `"${String(v).replace(/"/g, '\\"')}"`;
-      });
-      return `  ${col.replace(/[^A-Za-z0-9_.]/g, '_')} = c(${vals.join(', ')})`;
-    });
-    const rCode = `df <- data.frame(\n${rLines.join(',\n')}\n)\ncat("Rows:", nrow(df), "  Columns:", ncol(df), "\\n")\nstr(df)\nsummary(df)`;
     try {
+      // Keep imported headers as data instead of turning them into executable names.
+      // Each column is passed as a separately quoted R vector, preserving spaces,
+      // punctuation, missing values, and duplicate names without source injection.
+      const columns = cols.map(col => {
+        const column = tableRows.map(row => row[col]);
+        const numeric = column.every(value => value === null || value === undefined || typeof value === 'number');
+        const values = column.map(value => value === null || value === undefined
+          ? numeric ? 'NA_real_' : 'NA_character_'
+          : numeric ? String(value) : rStringLiteral(String(value)));
+        return `c(${values.join(', ')})`;
+      });
+      const rNames = cols.map(rStringLiteral).join(', ');
+      const rCode = `df <- as.data.frame(setNames(list(${columns.join(', ')}), c(${rNames})), check.names = FALSE, stringsAsFactors = FALSE)\ncat("Rows:", nrow(df), "  Columns:", ncol(df), "\\n")\nstr(df)\nsummary(df)`;
       const result = await executeR(rCode, runtime);
       setDatasetOut(result.output);
       saveActivity(`Analyzed ${dataset} in R`);
@@ -598,7 +676,7 @@ export default function StatLabApp() {
   };
 
   // ── Theme ──────────────────────────────────────────────────────────────────
-  const toggleTheme = () => { setDark(v => { safeSet('statlab-theme', v ? 'light' : 'dark'); return !v; }); };
+  const toggleTheme = () => { setDark(v => { writeProgressPatch({ theme: v ? 'light' : 'dark' }); return !v; }); };
 
   // ── Copy playground code ───────────────────────────────────────────────────
   const copyCode = async () => {
@@ -637,7 +715,7 @@ export default function StatLabApp() {
         : ['1', '2', '3', '4', '5', '6'];
       setExperimentData(vals.map((v, i) => ({ label: labels[i] ?? String(i + 1), value: v })));
       setExperimentSummary(summary);
-      setRuns(n => { safeSet('statlab-runs', String(n + 1)); return n + 1; });
+      setRuns(n => { const next = n + 1; writeProgressPatch({ runs: next }); return next; });
       saveActivity(
         experimentMode === 'normal'
           ? `Normal distribution experiment · seed ${seed}`
@@ -895,7 +973,7 @@ export default function StatLabApp() {
                   <div>
                     <span className="eyebrow">YOUR FIRST FEW MINUTES</span>
                     <h3>Start small. Stay curious.</h3>
-                    <p>Open the playground, run one line, then change a value and run it again. That's how every statistical idea clicks.</p>
+                    <p>Open the playground, run one line, then change a value and run it again. That&apos;s how every statistical idea clicks.</p>
                   </div>
                   <button className="onboarding-action" onClick={() => go('R Playground')}>
                     Start with R <ArrowUpRight size={14} />
@@ -911,6 +989,7 @@ export default function StatLabApp() {
                   </div>
                   <div className="activity-numbers">
                     <div><strong>{runs}</strong><span>R runs</span></div>
+                    <div><strong>{completedLessons.length}<small> / {fundamentalsLessons.length}</small></strong><span>lessons</span></div>
                     <div>
                       <strong>{progress.length}<small> / {exercises.length}</small></strong>
                       <span>challenges</span>
@@ -925,6 +1004,9 @@ export default function StatLabApp() {
                   {activity.length
                     ? <ol className="activity-list">{activity.slice(0, 3).map(x => <li key={x}>{x}</li>)}</ol>
                     : <div className="activity-empty"><span className="empty-orbit" />Your experiments will show up here as you go.</div>}
+                  {recentModules.length > 0 && (
+                    <div className="recent-modules"><span>Recently opened</span>{recentModules.slice(0, 3).map(name => <button key={name} onClick={() => go(name)}>{name}<ArrowUpRight size={12} /></button>)}</div>
+                  )}
                 </section>
               </section>
             </div>
@@ -1017,90 +1099,61 @@ export default function StatLabApp() {
           ══════════════════════════════════════════════════════ */}
           {active === 'R Fundamentals' && (
             <>
-              <Heading icon={<Type size={18} />} title="R Fundamentals" description="Learn core R ideas through guided, runnable examples." />
+              <Heading icon={<Type size={18} />} title="R Fundamentals" description="A 20-lesson path from your first expression to basic statistical summaries." />
               <InfoBox>
-                <strong>How to use this module:</strong> Select a topic on the left, read the explanation, then click <strong>Run example in R</strong> to execute it in WebR.
-                Try changing the values in the example and re-running — that is the fastest way to learn.
+                <strong>How to use this module:</strong> Choose a topic, read its goal and explanation, and run the example in WebR. Mark a lesson complete when you feel ready to move on. You can return to any topic at any time.
               </InfoBox>
               <div className="split-layout">
                 <section className="panel challenge-list">
-                  {[
-                    { title: 'Variables & types',   desc: 'How R stores values' },
-                    { title: 'Operators & vectors', desc: 'Arithmetic on collections' },
-                    { title: 'Missing values',      desc: 'Working with NA' },
-                  ].map((x, i) => (
+                  {fundamentalsLessons.map((item, i) => (
                     <button
-                      key={x.title}
+                      key={item.title}
                       className={`challenge-item${lesson === i ? ' active' : ''}`}
                       onClick={() => { setLesson(i); setFundamentalsOut([]); }}
                     >
-                      <span className="challenge-number">0{i + 1}</span>
-                      <span><b>{x.title}</b><small>{x.desc}</small></span>
+                      <span className={`challenge-number${completedLessons.includes(i) ? ' done' : ''}`}>{completedLessons.includes(i) ? '✓' : String(i + 1).padStart(2, '0')}</span>
+                      <span><b>{item.title}</b><small>{item.summary}</small></span>
                     </button>
                   ))}
                 </section>
                 <section className="panel result-panel">
-                  {lesson === 0 && (
-                    <>
-                      <div className="panel-head"><div><h3>Variables and types</h3><p>The building blocks of every R program</p></div></div>
-                      <p className="lesson-text">
-                        In R, <code>&lt;-</code> assigns a value to a variable name. Every value has a <em>type</em> — a number can be a decimal (double), a whole number (integer), while text is a character string and logical values are <code>TRUE</code> or <code>FALSE</code>.
-                        The StatLab helper <code>statlab_inspect()</code> prints the type, class and length of any value.
-                      </p>
-                      <LessonCode code={`score  <- 92L      # integer (L suffix)\nname   <- "Maya"   # character string\npassed <- TRUE     # logical\n\nstatlab_inspect(score)\nclass(name)\ntypeof(passed)`} />
-                      <p className="lesson-text">
-                        <strong>Try it:</strong> Change <code>92L</code> to <code>92.5</code> (a decimal) and re-run. Notice how the type changes from integer to double.
-                      </p>
-                    </>
-                  )}
-                  {lesson === 1 && (
-                    <>
-                      <div className="panel-head"><div><h3>Operators and vectors</h3><p>R thinks in collections, not single values</p></div></div>
-                      <p className="lesson-text">
-                        A <em>vector</em> is the fundamental data structure in R — it holds multiple values of the same type. Create one with <code>c()</code>.
-                        Arithmetic operators work on every element automatically (this is called <em>vectorization</em>). The StatLab helper <code>statlab_vector_summary()</code> returns length, sum, mean, min and max in one call.
-                      </p>
-                      <LessonCode code={`values <- c(4, 8, 12, 16, 20)\nvalues * 2           # double every element\nvalues + 100         # add 100 to each\nstatlab_vector_summary(values)`} />
-                      <p className="lesson-text">
-                        <strong>Try it:</strong> Add more numbers to <code>c(...)</code> and see how the summary updates.
-                      </p>
-                    </>
-                  )}
-                  {lesson === 2 && (
-                    <>
-                      <div className="panel-head"><div><h3>Missing values</h3><p>How R represents and handles absent data</p></div></div>
-                      <p className="lesson-text">
-                        <code>NA</code> represents a missing or unknown value. Many real datasets contain missing data. Most R functions will return <code>NA</code> if any input is <code>NA</code> — unless you pass <code>na.rm = TRUE</code> to skip the missing values.
-                        <code>anyNA()</code> quickly checks whether any <code>NA</code> values exist in a vector.
-                      </p>
-                      <LessonCode code={`x <- c(3, NA, 7, 10, NA, 14)\nmean(x)              # returns NA (missing input)\nmean(x, na.rm = TRUE) # correctly ignores NAs\nanyNA(x)             # TRUE — NAs exist\nsum(is.na(x))        # count the NAs`} />
-                      <p className="lesson-text">
-                        <strong>Try it:</strong> Remove one of the <code>NA</code> values from the vector and observe how <code>sum(is.na(x))</code> changes.
-                      </p>
-                    </>
-                  )}
+                  <div className="panel-head"><div><h3>{fundamentalsLessons[lesson].title}</h3><p>{fundamentalsLessons[lesson].summary}</p></div></div>
+                  <p className="eyebrow">LEARNING OBJECTIVE</p>
+                  <p className="lesson-text">{fundamentalsLessons[lesson].objective}</p>
+                  <p className="lesson-text">{fundamentalsLessons[lesson].explanation}</p>
+                  <LessonCode code={fundamentalsLessons[lesson].code} />
+                  <p className="lesson-text"><strong>Expected result:</strong> {fundamentalsLessons[lesson].expected}</p>
+                  <p className="lesson-text"><strong>Common mistake:</strong> {fundamentalsLessons[lesson].commonMistake}</p>
+                  <p className="lesson-text"><strong>Try it:</strong> {fundamentalsLessons[lesson].exercise}</p>
                   <button
                     className="primary"
                     style={{ marginTop: 12 }}
                     disabled={runtimeStatus !== 'ready'}
                     onClick={async () => {
-                      const codes = [
-                        `score  <- 92L\nname   <- "Maya"\npassed <- TRUE\nstatlab_inspect(score)\nclass(name)\ntypeof(passed)`,
-                        `values <- c(4, 8, 12, 16, 20)\nvalues * 2\nvalues + 100\nstatlab_vector_summary(values)`,
-                        `x <- c(3, NA, 7, 10, NA, 14)\nmean(x)\nmean(x, na.rm = TRUE)\nanyNA(x)\nsum(is.na(x))`,
-                      ];
                       try {
-                        const r = await executeR(codes[lesson], runtime || undefined);
+                        const r = await executeR(fundamentalsLessons[lesson].code, runtime || undefined);
                         setFundamentalsOut(r.output);
                       } catch (e) { setFundamentalsOut([{ type: 'error', text: String(e) }]); }
                     }}
                   >
                     <Play size={13} fill="currentColor" />Run example in R
                   </button>
+                  <button
+                    className="secondary"
+                    style={{ margin: '12px 0 0 8px' }}
+                    aria-pressed={completedLessons.includes(lesson)}
+                    onClick={() => setCompletedLessons(old => {
+                      const next = old.includes(lesson) ? old : [...old, lesson].sort((a, b) => a - b);
+                      writeProgressPatch({ completedLessons: next });
+                      return next;
+                    })}
+                  >
+                    {completedLessons.includes(lesson) ? 'Lesson completed' : 'Mark lesson complete'}
+                  </button>
                   <Output items={fundamentalsOut} />
-                  {fundamentalsOut.length > 0 && (
+                  {hasSuccessfulOutput(fundamentalsOut) && (
                     <p className="lesson-text" style={{ marginTop: 10 }}>
-                      <strong>Reading the result:</strong> Each line starting with <code>›</code> is a value R printed.
+                      <strong>Reading the result:</strong> These values were computed by R in your browser.
                       Experiment by pasting the example into the <button className="link-button" style={{ padding: '0 2px' }} onClick={() => go('R Playground')}>R Playground</button> to modify and explore it freely.
                     </p>
                   )}
@@ -1166,7 +1219,7 @@ export default function StatLabApp() {
                 <section className="panel result-panel">
                   <div className="panel-head"><div><h3>R result</h3><p>Output from your R calculations</p></div></div>
                   <Output items={vectorsOut} />
-                  {vectorsOut.length > 0 && (
+                  {hasSuccessfulOutput(vectorsOut) && (
                     <p className="lesson-text" style={{ marginTop: 10 }}>
                       <strong>Understanding the output:</strong> <code>statlab_vector_summary()</code> returns the count, sum, mean, min, and max. Try entering a different set of numbers and running again.
                     </p>
@@ -1203,7 +1256,7 @@ export default function StatLabApp() {
                 <DataTable rows={sampleRows} />
                 <Output items={dataFrameOut} />
                 <LessonCode code={`students <- statlab_student_marks()\n\n# Filter rows where marks >= 80\nstatlab_filter_rows(students, "marks", 80)\n\n# Summarise all numeric columns\nstatlab_summarise_numeric(students)`} />
-                {dataFrameOut.length > 0 && (
+                {hasSuccessfulOutput(dataFrameOut) && (
                   <p className="lesson-text" style={{ marginTop: 8 }}>
                     <strong>Reading the output:</strong> The filtered table shows only students with marks ≥ 80.
                     The numeric summary gives mean, min, max, and standard deviation for each numeric column.
@@ -1259,7 +1312,7 @@ export default function StatLabApp() {
                     <div className="panel-head"><div><h3>R summary result</h3><p>Computed by <code>statlab_descriptive_summary()</code></p></div></div>
                     <Output items={statsLabOut} />
                     <LessonCode code={`x <- c(10, 20, 30, 40, 50)\nstatlab_descriptive_summary(x)\nstatlab_mode(x)`} />
-                    {statsLabOut.length > 0 && (
+                    {hasSuccessfulOutput(statsLabOut) && (
                       <p className="lesson-text" style={{ marginTop: 8 }}>
                         <strong>Reading the result:</strong> <em>variance_sample</em> and <em>sd_sample</em> use R&apos;s <code>var()</code> and <code>sd()</code> which divide by n−1 (Bessel&apos;s correction for sample data).
                         Q1 and Q3 are the 25th and 75th percentiles. The IQR (Q3−Q1) measures spread while ignoring outliers.
@@ -1294,7 +1347,7 @@ export default function StatLabApp() {
                     <div className="panel-head"><div><h3>Correlation result</h3><p>Pearson and Spearman coefficients + significance test</p></div></div>
                     <Output items={corrOut} />
                     <LessonCode code={`x <- c(10, 20, 30, 40, 50)\ny <- c(12, 25, 28, 37, 53)\nstatlab_correlation(x, y)          # Pearson\nstatlab_correlation(x, y, method = "spearman")\ncor.test(x, y)`} />
-                    {corrOut.length > 0 && (
+                    {hasSuccessfulOutput(corrOut) && (
                       <p className="lesson-text" style={{ marginTop: 8 }}>
                         <strong>Reading the result:</strong> The Pearson coefficient assumes a linear relationship. Spearman uses ranks and works for monotone (not necessarily linear) relationships.
                         The p-value from <code>cor.test()</code> tells you whether the correlation is statistically significant — typically a p-value below 0.05 is considered significant.
@@ -1309,7 +1362,7 @@ export default function StatLabApp() {
                 <div className="split-layout">
                   <section className="panel controls">
                     <InfoBox>
-                      <strong>What is hypothesis testing?</strong> A one-sample t-test asks: "Is the true mean of my sample equal to some value I expect (μ₀)?" The test tells you how likely your data is <em>if</em> that expected value were true.
+                      <strong>What is hypothesis testing?</strong> A one-sample t-test asks: &quot;Is the true mean of my sample equal to some value I expect (μ₀)?&quot; The test tells you how likely your data is <em>if</em> that expected value were true.
                       <br /><strong>How to use:</strong> Enter your sample, a hypothesised mean, and choose the type of test.
                     </InfoBox>
                     <span className="eyebrow" style={{ marginTop: 12 }}>ONE-SAMPLE T-TEST</span>
@@ -1334,7 +1387,7 @@ export default function StatLabApp() {
                     <div className="panel-head"><div><h3>Hypothesis test result</h3><p>Computed by <code>t.test()</code> via <code>statlab_one_sample_test()</code></p></div></div>
                     <Output items={htOut} />
                     <LessonCode code={`x <- c(82, 76, 90, 88, 74, 93, 69, 85)\nstatlab_one_sample_test(x, mu = 80, alternative = "two.sided")`} />
-                    {htOut.length > 0 && (
+                    {hasSuccessfulOutput(htOut) && (
                       <p className="lesson-text" style={{ marginTop: 8 }}>
                         <strong>Reading the result:</strong> The <em>t-statistic</em> measures how many standard errors the sample mean is from μ₀.
                         The <em>p-value</em> is the probability of seeing a t-statistic this large (or larger) purely by chance.
@@ -1446,7 +1499,7 @@ export default function StatLabApp() {
                     ? <Chart data={probChartData} color="#a78bfa" />
                     : <div className="empty-plot">Run the simulation to see the frequency distribution.</div>}
                   <Output items={probOut} />
-                  {probOut.length > 0 && (
+                  {hasSuccessfulOutput(probOut) && (
                     <p className="lesson-text" style={{ marginTop: 8 }}>
                       <strong>Understanding the output:</strong> Theoretical mean = 3.5. If your empirical mean is close to 3.5, the Law of Large Numbers is working. The more rolls you use, the closer the observed frequencies will be to 1/6 ≈ 16.7%.
                     </p>
@@ -1469,10 +1522,10 @@ export default function StatLabApp() {
               </InfoBox>
 
               <div className="stats-tabs" style={{ marginBottom: 12 }}>
-                <button className={`stats-tab${vizMode === 'histogram' ? ' active' : ''}`} onClick={() => setVizMode('histogram')}>
+                <button className={`stats-tab${vizMode === 'histogram' ? ' active' : ''}`} onClick={() => { setVizMode('histogram'); setVizOut([]); setVizChartData([]); setBoxStats([]); }}>
                   <BarChart3 size={13} />Histogram
                 </button>
-                <button className={`stats-tab${vizMode === 'boxplot' ? ' active' : ''}`} onClick={() => setVizMode('boxplot')}>
+                <button className={`stats-tab${vizMode === 'boxplot' ? ' active' : ''}`} onClick={() => { setVizMode('boxplot'); setVizOut([]); setVizChartData([]); setBoxStats([]); }}>
                   <Activity size={13} />Boxplot Summary
                 </button>
               </div>
@@ -1556,9 +1609,9 @@ export default function StatLabApp() {
                       : <div className="empty-plot">Compute the boxplot summary to see results.</div>
                   )}
                   <Output items={vizOut} />
-                  {vizOut.length > 0 && vizMode === 'histogram' && (
+                  {hasSuccessfulOutput(vizOut) && vizMode === 'histogram' && (
                     <p className="lesson-text" style={{ marginTop: 8 }}>
-                      <strong>Reading the chart:</strong> The x-axis shows value ranges (bins). The y-axis shows how many values fall in each bin. A symmetric, bell-shaped histogram suggests your data follows a normal distribution.
+                      <strong>Reading the chart:</strong> The x-axis shows value ranges (bins) and the y-axis counts observations in each bin. A roughly symmetric, bell-shaped histogram is compatible with a normal distribution, but the chart alone cannot prove a model fits well—especially for a small sample.
                     </p>
                   )}
                   {boxStats.length === 5 && vizMode === 'boxplot' && (
@@ -1614,7 +1667,7 @@ export default function StatLabApp() {
                 </div>
                 <DataTable rows={visibleRows} />
                 <Output items={datasetOut} />
-                {datasetOut.length > 0 && (
+                {hasSuccessfulOutput(datasetOut) && (
                   <p className="lesson-text" style={{ marginTop: 8 }}>
                     <strong>Reading the output:</strong> <code>str()</code> shows the column types and a preview of values. <code>summary()</code> provides min, max, mean, and quartiles for numeric columns, and counts for character columns.
                   </p>
@@ -1646,7 +1699,11 @@ export default function StatLabApp() {
                     <div className="progress-track">
                       <span style={{ width: `${(progress.length / exercises.length) * 100}%` }} />
                     </div>
-                    <button className="link-button" onClick={() => { setProgress([]); safeSet('statlab-progress', '[]'); }}>
+                    <button className="link-button" onClick={() => {
+                      if (window.confirm('Reset all completed challenges? This cannot be undone.')) {
+                        setProgress([]); writeProgressPatch({ completedChallenges: [] }); setSolutionVisible(false);
+                      }
+                    }}>
                       Reset progress
                     </button>
                   </div>
@@ -1654,20 +1711,21 @@ export default function StatLabApp() {
                     <button
                       key={ex.title}
                       className={`challenge-item${challenge === i ? ' active' : ''}`}
-                      onClick={() => { setChallenge(i); setChallengeCode(ex.starter); setChallengeFeedback(''); }}
+                      onClick={() => { setChallenge(i); setChallengeCode(ex.starter); setChallengeFeedback(''); setSolutionVisible(false); }}
                     >
                       <span className={`challenge-number${progress.includes(i) ? ' done' : ''}`}>
                         {progress.includes(i) ? '✓' : `0${i + 1}`}
                       </span>
-                      <span><b>{ex.title}</b><small>Beginner · R fundamentals</small></span>
+                      <span><b>{ex.title}</b><small>{ex.difficulty} · {ex.topic}</small></span>
                       <ChevronRight size={14} />
                     </button>
                   ))}
                 </section>
                 <section className="panel challenge-detail">
-                  <span className="eyebrow">CHALLENGE {String(challenge + 1).padStart(2, '0')} · BEGINNER</span>
+                  <span className="eyebrow">CHALLENGE {String(challenge + 1).padStart(2, '0')} · {exercises[challenge].difficulty.toUpperCase()} · {exercises[challenge].topic.toUpperCase()}</span>
                   <h2>{exercises[challenge].title}</h2>
                   <p>{exercises[challenge].goal}</p>
+                  <p className="lesson-text"><strong>Expected result:</strong> {exercises[challenge].expected}</p>
                   <textarea
                     className="challenge-editor"
                     aria-label="Challenge answer code"
@@ -1680,8 +1738,9 @@ export default function StatLabApp() {
                       if (!runtime) return;
                       setChallengeFeedback('Running your code and checking the result in R…');
                       try {
+                        const candidate = `${challengeCode}\n${exercises[challenge].check}\nbase::cat("\\nChallenge check passed.\\n")`;
                         const result = await executeR(
-                          `${challengeCode}\n${exercises[challenge].check}\ncat("\\nChallenge check passed.\\n")`,
+                          `base::eval(base::parse(text = ${rStringLiteral(candidate)}), envir = new.env(parent = .GlobalEnv))`,
                           runtime,
                         );
                         const success = result.output.some(x => x.text.includes('Challenge check passed'));
@@ -1689,7 +1748,7 @@ export default function StatLabApp() {
                           setChallengeFeedback('✓ Correct — your code passes the R computation check!');
                           setProgress(old => {
                             const next = old.includes(challenge) ? old : [...old, challenge];
-                            safeSet('statlab-progress', JSON.stringify(next));
+                            writeProgressPatch({ completedChallenges: next });
                             return next;
                           });
                           saveActivity(`Challenge completed: ${exercises[challenge].title}`);
@@ -1709,7 +1768,17 @@ export default function StatLabApp() {
                     >
                       <Lightbulb size={13} />Hint
                     </button>
+                    <button className="secondary" onClick={() => setSolutionVisible(value => !value)}>
+                      {solutionVisible ? 'Hide solution' : 'Show solution'}
+                    </button>
                   </div>
+                  {solutionVisible && (
+                    <div className="challenge-feedback">
+                      <strong>One solution</strong>
+                      <LessonCode code={exercises[challenge].solution} />
+                      <p>{exercises[challenge].explanation}</p>
+                    </div>
+                  )}
                   {challengeFeedback && (
                     <div className={`challenge-feedback${challengeFeedback.startsWith('✓') ? ' ok' : ''}`}>
                       {challengeFeedback}
@@ -1757,9 +1826,9 @@ export default function StatLabApp() {
                 <section className="panel about-card">
                   <div className="brand-symbol"><FlaskConical size={18} /></div>
                   <h2>Explore data.<br /><span>Simulate ideas.</span><br />Think statistically.</h2>
-                  <p>StatLab is an interactive R programming and statistical simulation lab designed to learn by experimenting with real code and data. Every chart, summary, and output shown in the application is computed by genuine R code running in your browser through WebAssembly — not pre-computed or hardcoded.</p>
+                  <p>StatLab is an interactive R programming and statistical simulation lab designed to learn by experimenting with real code and data. Calculations in the interactive lessons use genuine R running in your browser through WebAssembly. The charts are drawn in the browser from R-computed values; the labeled homepage artwork is illustrative.</p>
                   <blockquote>StatLab is an independent educational project created for learning and experimentation. It is not affiliated with, endorsed by, or an official product of NPTEL or SWAYAM.</blockquote>
-                  <p>The project grew from studying R through NPTEL SWAYAM as part of a college open elective. No course content is reproduced here. The codebase is open source.</p>
+                  <p>The project grew from studying R through NPTEL SWAYAM as part of a college open elective. No course content is reproduced here. You can inspect the project source on GitHub.</p>
                 </section>
                 <section className="panel about-card">
                   <h3>Runtime architecture</h3>
@@ -1768,6 +1837,7 @@ export default function StatLabApp() {
                   <div className="about-row"><b>R runtime</b> WebR 0.6.0 · browser-side WebAssembly · R 4</div>
                   <div className="about-row"><b>Privacy</b> User code and CSV files never leave your browser</div>
                   <div className="about-row"><b>Source</b> 10 R helper modules in <code>r/</code> — statistics, regression, probability, visualization</div>
+                  <div className="about-row"><b>Repository</b> <a href="https://github.com/mukti786/StatLab" target="_blank" rel="noreferrer">GitHub source code <ArrowUpRight size={12} aria-hidden="true" /></a></div>
                   <div className="about-row"><b>Known limits</b> WebAssembly memory limits apply; package installation is not supported; first load requires downloading the WebR runtime</div>
                   <h3 style={{ marginTop: 20 }}>Modules available</h3>
                   <p>Dashboard · R Playground · R Fundamentals · Vectors &amp; Matrices · Data Frames · Statistics Lab (with descriptive statistics, correlation, hypothesis testing, and regression) · Probability Lab · Data Visualization (histogram + boxplot) · Dataset Explorer (with CSV-to-R bridge) · Learning Challenges · About</p>
@@ -1938,15 +2008,6 @@ function ExperimentChart({ data }: { data: ChartDatum[] }) {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function safeGet(key: string) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-function safeSet(key: string, value: string) {
-  try { localStorage.setItem(key, value); } catch { /* Storage disabled or full */ }
-}
-function safeJson<T>(key: string, fallback: T): T {
-  try { const v = safeGet(key); return v ? (JSON.parse(v) as T) : fallback; } catch { return fallback; }
-}
 function downloadFile(name: string, text: string) {
   const blob = new Blob([text], { type: 'text/plain' });
   const url  = URL.createObjectURL(blob);

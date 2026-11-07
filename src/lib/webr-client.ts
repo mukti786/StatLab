@@ -48,6 +48,13 @@ function consoleProgram(source: string) {
 }
 
 let runtimePromise: Promise<WebRInstance> | undefined;
+let executionQueue: Promise<unknown> = Promise.resolve();
+
+function serializeRSession<T>(operation: () => Promise<T>): Promise<T> {
+  const result = executionQueue.then(operation, operation);
+  executionQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
 
 async function loadLibrary(runtime: WebRInstance) {
   const modules = [
@@ -84,38 +91,42 @@ export function initializeWebR(onStatus?: (status: 'initializing' | 'ready' | 'e
 
 export async function executeR(code: string, runtime?: WebRInstance): Promise<RRunResult> {
   const activeRuntime = runtime ?? await initializeWebR();
-  const shelter = await new activeRuntime.Shelter();
-  const started = performance.now();
-  try {
-    const result = await shelter.captureR(consoleProgram(code), {
-      withAutoprint: false, captureConditions: false, captureStreams: true,
-      captureGraphics: { width: 900, height: 480 }, throwJsException: false,
-    });
-    return {
-      output: await Promise.all(result.output.map(async ({ type, data }) => {
-        const text = await formatCondition(data);
-        const condition = text.match(/^STATLAB_(ERROR|WARNING|MESSAGE):([\s\S]*)$/);
-        return condition
-          ? { type: condition[1].toLowerCase(), text: condition[2].trim() }
-          : { type, text };
-      })),
-      images: result.images,
-      durationMs: performance.now() - started,
-    };
-  } finally {
-    await shelter.purge();
-  }
+  return serializeRSession(async () => {
+    const shelter = await new activeRuntime.Shelter();
+    const started = performance.now();
+    try {
+      const result = await shelter.captureR(consoleProgram(code), {
+        withAutoprint: false, captureConditions: false, captureStreams: true,
+        captureGraphics: { width: 900, height: 480 }, throwJsException: false,
+      });
+      return {
+        output: await Promise.all(result.output.map(async ({ type, data }) => {
+          const text = await formatCondition(data);
+          const condition = text.match(/^STATLAB_(ERROR|WARNING|MESSAGE):([\s\S]*)$/);
+          return condition
+            ? { type: condition[1].toLowerCase(), text: condition[2].trim() }
+            : { type, text };
+        })),
+        images: result.images,
+        durationMs: performance.now() - started,
+      };
+    } finally {
+      await shelter.purge();
+    }
+  });
 }
 
 export async function executeRArray(code: string, runtime?: WebRInstance): Promise<unknown[]> {
   const activeRuntime = runtime ?? await initializeWebR();
-  const result = await activeRuntime.evalR(code);
-  try {
-    if ('toArray' in result && typeof result.toArray === 'function') return await result.toArray();
-    return [String(result)];
-  } finally {
-    await activeRuntime.destroy(result);
-  }
+  return serializeRSession(async () => {
+    const result = await activeRuntime.evalR(code);
+    try {
+      if ('toArray' in result && typeof result.toArray === 'function') return await result.toArray();
+      return [String(result)];
+    } finally {
+      await activeRuntime.destroy(result);
+    }
+  });
 }
 
 export async function resetRSession(onStatus?: (status: 'initializing' | 'ready' | 'error') => void) {
