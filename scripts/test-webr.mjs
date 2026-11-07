@@ -1,9 +1,24 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { Worker as NodeWorker } from 'node:worker_threads';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebR } from 'webr';
 
-// Use a file URL explicitly because Windows paths are not valid ESM worker URLs.
-const runtime = new WebR({ baseUrl: new URL('../node_modules/webr/dist/', import.meta.url).href });
+// WebR 0.6.0 concatenates baseUrl into a string before calling Node's Worker.
+// Node 24 requires file URLs as URL objects, so adapt only this Node test harness.
+globalThis.Worker = class NodeWorkerWithFileUrl extends NodeWorker {
+  constructor(specifier, options) {
+    const workerUrl = typeof specifier === 'string' && specifier.startsWith('file:')
+      ? new URL(specifier)
+      : typeof specifier === 'string' && /^[a-z]:[\\/]/i.test(specifier)
+        ? pathToFileURL(specifier)
+        : specifier;
+    super(workerUrl, options);
+  }
+};
+const workerDirectory = fileURLToPath(new URL('../node_modules/webr/dist/', import.meta.url));
+const runtimeOptions = { baseUrl: `${workerDirectory}/` };
+let runtime = new WebR(runtimeOptions);
 await runtime.init();
 try {
   for (const file of [
@@ -24,7 +39,19 @@ try {
   const error = await shelter.captureR('stop("intentional check")', { throwJsException: false, captureGraphics: false });
   assert.ok(error.output.some(item => item.type === 'error'));
   await shelter.purge();
-  console.log('WebR checks passed: vector mean/sd, data-frame mean, seeded sampling, source library, captured output and errors.');
+  assert.equal(await runtime.evalRNumber('user_value <- 41; user_value + 1'), 42);
+  assert.equal(await runtime.evalRBoolean('base::exists("user_value", envir = base::globalenv())'), true);
+  runtime.close();
+  runtime = new WebR(runtimeOptions);
+  await runtime.init();
+  for (const file of [
+    'variables_types.R', 'vectors_matrices.R', 'data_frames.R', 'control_flow_functions.R',
+    'descriptive_statistics.R', 'probability_simulations.R', 'hypothesis_testing.R',
+    'regression.R', 'data_visualization.R', 'datasets.R',
+  ]) await runtime.evalRVoid(await readFile(new URL(`../r/${file}`, import.meta.url), 'utf8'));
+  assert.equal(await runtime.evalRBoolean('base::exists("user_value", envir = base::globalenv())'), false);
+  assert.equal(await runtime.evalRNumber('mean(c(10, 20, 30, 40, 50))'), 30);
+  console.log('WebR checks passed: helper modules, calculations, data frames, sampling, output/errors, session persistence and clean-session reset.');
 } finally {
   runtime.close();
 }

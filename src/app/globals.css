@@ -647,6 +647,15 @@ code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size
   background: var(--input);
   font: 13px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace;
   overflow: auto;
+  scroll-behavior: smooth;
+}
+.console-history-entry { padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
+.console-history-code { display: flex; gap: 9px; color: var(--cyan); }
+.console-history-code pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--soft); }
+.console-history-entry .output-block { margin-top: 5px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 .console-badge {
   display: inline-block;
@@ -729,6 +738,12 @@ code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size
   border-radius: 8px;
   margin-top: 12px;
 }
+.table-summary { color: var(--muted); font-size: 13px; margin: 10px 0; }
+.table-sort { color: inherit; background: transparent; border: 0; padding: 0; text-align: left; font-weight: 600; }
+.table-kind { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+.table-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 10px; color: var(--muted); font-size: 13px; }
+.table-pagination > div { display: flex; gap: 8px; }
+.table-pagination .tool { padding: 6px 10px; }
 table { width: 100%; border-collapse: collapse; }
 th {
   text-align: left;
@@ -842,6 +857,9 @@ tbody tr:hover td { background: var(--panel2); }
 }
 .r-plots canvas {
   max-width: 100%;
+  height: auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
   border-radius: 4px;
 }
 

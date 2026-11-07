@@ -46,4 +46,12 @@ describe('versioned local progress', () => {
     expect(readProgressState().version).toBe(1);
     expect(() => writeProgressPatch({ runs: 1 })).not.toThrow();
   });
+
+  it('persists lesson and challenge completion independently and can clear both', () => {
+    vi.stubGlobal('localStorage', mockStorage());
+    writeProgressPatch({ completedLessons: [0, 2], completedChallenges: [1] });
+    expect(readProgressState()).toMatchObject({ completedLessons: [0, 2], completedChallenges: [1] });
+    writeProgressPatch({ completedLessons: [], completedChallenges: [] });
+    expect(readProgressState()).toMatchObject({ completedLessons: [], completedChallenges: [] });
+  });
 });

@@ -15,6 +15,11 @@ describe('local CSV handling', () => {
     expect(() => parseCsv('a\nleft"right')).toThrow('start of a field');
     expect(() => parseCsv('a\n"quoted"tail')).toThrow('after a closing quote');
   });
+  it('rejects empty headers and enforces configurable byte and row limits', () => {
+    expect(() => parseCsv('name,\nA,1')).toThrow('headers cannot be empty');
+    expect(() => parseCsv('a\n1\n2', 100, 1)).toThrow('1 records');
+    expect(() => parseCsv('a\nlong', 4, 10)).toThrow('2 MB');
+  });
   it('encodes imported text as an R string literal without allowing source injection', () => {
     expect(rStringLiteral('comma, "quote" \\path\nnext')).toBe('"comma, \\"quote\\" \\\\path\\nnext"');
     expect(() => rStringLiteral('bad\0value')).toThrow('null bytes');

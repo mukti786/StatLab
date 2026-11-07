@@ -14,7 +14,7 @@ import {
   ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import type { WebR as WebRInstance } from 'webr';
-import { executeR, initializeWebR, type ROutput } from '@/lib/webr-client';
+import { executeR, initializeWebR, resetRSession, type ROutput } from '@/lib/webr-client';
 import { parseCsv, rStringLiteral, stringifyCsv, type CsvRow } from '@/lib/csv';
 import { readProgressState, writeProgressPatch } from '@/lib/progress';
 import { fundamentalsLessons } from '@/lib/r-fundamentals';
@@ -66,6 +66,30 @@ const examples = [
   {
     title: 'Matrix operations', group: 'Vectors',
     code: '# Matrices — rectangular arrays of numbers\nm <- matrix(1:9, nrow = 3, ncol = 3)\nm\n\nrowSums(m)   # sum each row\ncolSums(m)   # sum each column\nt(m)         # transpose\nm %*% m      # matrix multiplication',
+  },
+  {
+    title: 'Vector indexing and sequences', group: 'Vectors',
+    code: '# R vectors start at index 1\nscores <- c(72, 85, 91, 64)\nscores[2]\nscores[scores >= 80]\nseq(from = 0, to = 1, by = 0.25)',
+  },
+  {
+    title: 'Conditions and loops', group: 'Control flow',
+    code: '# A condition chooses which expression to run\nscore <- 82\nif (score >= 60) "Pass" else "Try again"\n\n# A loop repeats an expression\ntotal <- 0\nfor (value in c(2, 4, 6)) total <- total + value\ntotal',
+  },
+  {
+    title: 'Base R plots', group: 'Visualization',
+    code: '# Try several base R graphics in one run\nplot(1:10, main = "A simple sequence", xlab = "Position", ylab = "Value")\nhist(rnorm(100), main = "A normal sample")\nboxplot(rnorm(100), main = "Sample spread")\nbarplot(c(10, 20, 30), names.arg = c("A", "B", "C"))',
+  },
+  {
+    title: 'Bernoulli and binomial probability', group: 'Probability',
+    code: '# Bernoulli: one trial with success probability p\ndbinom(1, size = 1, prob = 0.5)\n\n# Binomial: probability of exactly 3 successes in 10 trials\ndbinom(3, size = 10, prob = 0.5)\npbinom(3, size = 10, prob = 0.5) # 3 or fewer\nset.seed(42)\nrbinom(12, size = 10, prob = 0.5)',
+  },
+  {
+    title: 'Normal and uniform distributions', group: 'Probability',
+    code: '# Standard normal: probability below 1.96\npnorm(1.96)\nset.seed(42)\nsample_values <- rnorm(1000, mean = 10, sd = 2)\nmean(sample_values)\nsd(sample_values)\n\n# Uniform values between 0 and 1\nrunif(5, min = 0, max = 1)\npunif(0.75, min = 0, max = 1)',
+  },
+  {
+    title: 'Conditional probability', group: 'Probability',
+    code: '# A = even outcome; B = outcome greater than 3\noutcomes <- 1:6\nA <- outcomes %% 2 == 0\nB <- outcomes > 3\nmean(A)                       # P(A)\nmean(B)                       # P(B)\nmean(A & B) / mean(B)         # P(A | B)',
   },
 ];
 
@@ -158,6 +182,7 @@ const sampleRows = [
 
 type ChartDatum = { label: string; value: number };
 type ScatterDatum = { x: number; y: number };
+type PlaygroundEntry = { code: string; output: ROutput[]; durationMs: number | null; plotCount: number; error?: string };
 
 // ─── Shared UI primitives ─────────────────────────────────────────────────────
 
@@ -202,7 +227,7 @@ function Heading({ title, description, icon }: { title: string; description: str
   );
 }
 
-function Output({ items }: { items: ROutput[] }) {
+function Output({ items, emptyMessage = 'Run an R expression to see results here.' }: { items: ROutput[]; emptyMessage?: string }) {
   return (
     <div className="output-block">
       <pre>
@@ -218,7 +243,7 @@ function Output({ items }: { items: ROutput[] }) {
                 <span>{item.type === 'stdout' ? item.text : `${item.type}: ${item.text}`}</span>
               </div>
             ))
-          : <span className="muted-line">Run an R expression to see results here.</span>}
+          : <span className="muted-line">{emptyMessage}</span>}
       </pre>
     </div>
   );
@@ -271,11 +296,15 @@ export default function StatLabApp() {
 
   // ── R Playground (isolated) ────────────────────────────────────────────────
   const [code,     setCode]     = useState(examples[0].code);
-  const [output,   setOutput]   = useState<ROutput[]>([]);
   const [images,   setImages]   = useState<ImageBitmap[]>([]);
   const [running,  setRunning]  = useState(false);
-  const [duration, setDuration] = useState<number | null>(null);
   const [error,    setError]    = useState('');
+  const [history,  setHistory]  = useState<PlaygroundEntry[]>([]);
+  const [announcement, setAnnouncement] = useState('');
+  const [resettingSession, setResettingSession] = useState(false);
+  const runningRef = useRef(false);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  const autoScrollConsole = useRef(true);
   const [runs,     setRuns]     = useState(0);
   const [copied,   setCopied]   = useState(false);
 
@@ -367,6 +396,12 @@ export default function StatLabApp() {
     });
   }, []);
 
+  useEffect(() => {
+    if (autoScrollConsole.current && consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
+    }
+  }, [history, running, error]);
+
   // Give each learning workspace a bookmarkable hash route while keeping the
   // shared R session and editor mounted during client-side navigation.
   useEffect(() => {
@@ -409,6 +444,7 @@ export default function StatLabApp() {
     () => tableRows.filter(r => JSON.stringify(r).toLowerCase().includes(search.toLowerCase())),
     [tableRows, search],
   );
+  const consoleHasError = Boolean(error) || history.at(-1)?.output.some(item => item.type === 'error') === true;
 
   // ── Navigation helper ──────────────────────────────────────────────────────
   const go = useCallback((m: Module) => {
@@ -433,22 +469,44 @@ export default function StatLabApp() {
 
   // ── R Playground execute ───────────────────────────────────────────────────
   const run = useCallback(async (source = code) => {
+    if (runningRef.current || resettingSession) return;
     if (runtimeStatus !== 'ready' || !runtime) {
       setError(runtimeStatus === 'error' ? runtimeMessage : 'Wait for WebR to finish initializing.');
       return;
     }
     if (source.length > 50000) { setError('Code is limited to 50,000 characters per run.'); return; }
-    setRunning(true); setError(''); setOutput([]); setImages([]); setDuration(null);
+    runningRef.current = true;
+    setRunning(true); setError(''); setImages([]); setAnnouncement('R code is running.');
     writeProgressPatch({ playgroundCode: source });
     try {
       const result = await executeR(source, runtime);
-      setOutput(result.output); setImages(result.images); setDuration(result.durationMs);
+      setImages(result.images);
+      setHistory(old => [...old, { code: source, output: result.output, durationMs: result.durationMs, plotCount: result.images.length }].slice(-12));
+      setAnnouncement(result.output.some(item => item.type === 'error') ? 'R finished with an error.' : `R finished in ${result.durationMs.toFixed(0)} milliseconds.`);
       setRuns(n => { const next = n + 1; writeProgressPatch({ runs: next }); return next; });
       saveActivity('R program run');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'R execution failed. See the runtime status and try again.');
-    } finally { setRunning(false); }
-  }, [code, runtime, runtimeStatus, runtimeMessage]);
+      const message = e instanceof Error ? e.message : 'R execution failed. See the runtime status and try again.';
+      setError(message);
+      setHistory(old => [...old, { code: source, output: [], durationMs: null, plotCount: 0, error: message }].slice(-12));
+      setAnnouncement('R execution failed. See the console for details.');
+    } finally { runningRef.current = false; setRunning(false); }
+  }, [code, runtime, runtimeStatus, runtimeMessage, resettingSession]);
+
+  const resetSession = async () => {
+    if (runningRef.current || resettingSession) return;
+    setResettingSession(true); setRuntimeStatus('initializing'); setRuntimeMessage('Resetting the R session and reloading StatLab helpers…');
+    setError(''); setImages([]);
+    try {
+      const freshRuntime = await resetRSession(status => setRuntimeStatus(status));
+      setRuntime(freshRuntime); setRuntimeStatus('ready'); setRuntimeMessage('R 4 via WebR · browser runtime');
+      setAnnouncement('R environment reset. Your code editor and learning progress were kept.');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'The R session could not be reset.';
+      setRuntimeStatus('error'); setRuntimeMessage(message); setError(message);
+      setAnnouncement('R environment reset failed.');
+    } finally { setResettingSession(false); }
+  };
 
   // ── Dataset analysis ───────────────────────────────────────────────────────
   const runDataset = async (
@@ -500,7 +558,7 @@ export default function StatLabApp() {
       const vx = `c(${px.join(', ')})`;
       const vy = `c(${py.join(', ')})`;
       const result = await executeR(
-        `x <- ${vx}\ny <- ${vy}\ncat("Pearson correlation:", round(statlab_correlation(x, y), 4), "\\n")\ncat("Spearman correlation:", round(statlab_correlation(x, y, method = "spearman"), 4), "\\n")\ncat("n:", length(x), "pairs\\n")\ncor.test(x, y)`,
+        `x <- ${vx}\ny <- ${vy}\ncat("Pearson correlation:", round(statlab_correlation(x, y), 4), "\\n")\ncat("Spearman correlation:", round(statlab_correlation(x, y, method = "spearman"), 4), "\\n")\ncat("Covariance:", round(cov(x, y), 4), "\\n")\ncat("n:", length(x), "pairs\\n")\ncor.test(x, y)`,
         runtime,
       );
       setCorrOut(result.output);
@@ -685,7 +743,7 @@ export default function StatLabApp() {
     setTimeout(() => setCopied(false), 1400);
   };
 
-  const resetCode = () => { setCode(examples[0].code); setOutput([]); setError(''); setImages([]); };
+  const resetCode = () => { setCode(examples[0].code); setError(''); setImages([]); setHistory([]); setAnnouncement('Editor reset to the starter example.'); };
 
   // ── Dashboard experiment ───────────────────────────────────────────────────
   const runExperiment = async () => {
@@ -1033,8 +1091,11 @@ export default function StatLabApp() {
                 <span className="toolbar-spacer" />
                 <button className="tool" onClick={copyCode}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}</button>
                 <button className="tool" onClick={() => downloadFile('statlab.R', code)}><Download size={14} />Download .R</button>
-                <button className="tool" onClick={resetCode}><RotateCcw size={14} />Reset</button>
-                <button className="primary" disabled={running || runtimeStatus !== 'ready'} onClick={() => run()}>
+                <button className="tool" onClick={resetCode}><RotateCcw size={14} />Reset code</button>
+                <button className="tool" disabled={running || resettingSession || runtimeStatus !== 'ready'} onClick={resetSession}>
+                  <RotateCcw size={14} />{resettingSession ? 'Resetting R…' : 'Reset R environment'}
+                </button>
+                <button className="primary" disabled={running || resettingSession || runtimeStatus !== 'ready'} onClick={() => run()}>
                   <Play size={13} fill="currentColor" />{running ? 'Running…' : 'Run R'} <kbd className="kbd">Ctrl ↵</kbd>
                 </button>
               </div>
@@ -1054,28 +1115,39 @@ export default function StatLabApp() {
                   <div className="console-top">
                     <strong><Terminal size={13} />Console</strong>
                     <div>
-                      <span className={`runtime-dot ${running ? 'initializing' : error ? 'error' : 'ready'}`} />
-                      <button onClick={() => { setOutput([]); setError(''); setImages([]); }}>Clear output</button>
+                      <span className={`runtime-dot ${running ? 'initializing' : consoleHasError ? 'error' : 'ready'}`} />
+                      <button onClick={() => { setError(''); setImages([]); setHistory([]); setAnnouncement('Console cleared.'); }}>Clear console</button>
                     </div>
                   </div>
-                  <div className="console-body">
-                    <span className={`console-badge${error ? ' error' : running ? ' warn' : ''}`}>
-                      {error ? 'Execution failed' : running ? 'Running R code' : runtimeStatus === 'ready' ? 'Ready' : runtimeStatus === 'error' ? 'Runtime unavailable' : 'Initializing'}
+                  <div
+                    className="console-body"
+                    ref={consoleRef}
+                    onScroll={event => {
+                      const element = event.currentTarget;
+                      autoScrollConsole.current = element.scrollHeight - element.scrollTop - element.clientHeight < 36;
+                    }}
+                  >
+                    <span className={`console-badge${consoleHasError ? ' error' : running ? ' warn' : ''}`}>
+                      {resettingSession ? 'Resetting R session' : consoleHasError ? 'Execution failed' : running ? 'Running R code' : runtimeStatus === 'ready' ? 'Ready' : runtimeStatus === 'error' ? 'Runtime unavailable' : 'Initializing'}
                     </span>
-                    {error && (
-                      <div className="console-line error">
-                        <span className="console-prefix">×</span><span>{error}</span>
+                    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
+                    {history.length === 0 && !running && <Output items={[]} />}
+                    {history.map((entry, index) => (
+                      <div className="console-history-entry" key={`${index}-${entry.durationMs ?? 'error'}`}>
+                        <div className="console-history-code"><span aria-hidden="true">R&gt;</span><pre>{entry.code}</pre></div>
+                        {entry.error ? (
+                          <div className="console-line error"><span className="console-prefix">×</span><span>{entry.error}</span></div>
+                        ) : <Output items={entry.output} emptyMessage={entry.plotCount ? 'Plot created successfully; no console text.' : 'R completed without printing a value.'} />}
+                        {entry.durationMs !== null && <div className="chart-caption">Completed in {entry.durationMs.toFixed(0)} ms · actual WebR execution</div>}
                       </div>
-                    )}
-                    <Output items={output} />
-                    {duration !== null && (
-                      <div className="chart-caption">Completed in {duration.toFixed(0)} ms · actual WebR execution</div>
-                    )}
+                    ))}
+                    {running && <div className="console-line"><span className="console-prefix">›</span><span>Executing R code…</span></div>}
+                    {error && history.length === 0 && <div className="console-line error"><span className="console-prefix">×</span><span>{error}</span></div>}
                   </div>
                   {images.length > 0 && <PlotImages images={images} />}
                   <div className="environment">
-                    <div className="environment-head"><span>R ENVIRONMENT</span><span>persistent R session</span></div>
-                    <div className="environment-empty">Variables remain available between runs in this session. Use rm() to clear them.</div>
+                    <div className="environment-head"><span>R ENVIRONMENT</span><span>{resettingSession ? 'restarting session' : 'persistent R session'}</span></div>
+                    <div className="environment-empty">Variables persist between runs. Reset R environment starts a clean R session and reloads StatLab helpers; your code remains in the editor.</div>
                   </div>
                 </section>
               </div>
@@ -1318,7 +1390,7 @@ export default function StatLabApp() {
                         Q1 and Q3 are the 25th and 75th percentiles. The IQR (Q3−Q1) measures spread while ignoring outliers.
                       </p>
                     )}
-                    <p className="chart-caption">Mode = all values with the highest frequency. If all values are unique, every value is the mode.</p>
+                    <p className="chart-caption">Mode returns all values tied for the highest frequency. If every observation is unique, there is no single most frequent value, so this helper reports all observed values; for continuous data, consider grouping into intervals first.</p>
                   </section>
                 </div>
               )}
@@ -1346,7 +1418,7 @@ export default function StatLabApp() {
                   <section className="panel result-panel">
                     <div className="panel-head"><div><h3>Correlation result</h3><p>Pearson and Spearman coefficients + significance test</p></div></div>
                     <Output items={corrOut} />
-                    <LessonCode code={`x <- c(10, 20, 30, 40, 50)\ny <- c(12, 25, 28, 37, 53)\nstatlab_correlation(x, y)          # Pearson\nstatlab_correlation(x, y, method = "spearman")\ncor.test(x, y)`} />
+                    <LessonCode code={`x <- c(10, 20, 30, 40, 50)\ny <- c(12, 25, 28, 37, 53)\nstatlab_correlation(x, y)          # Pearson\nstatlab_correlation(x, y, method = "spearman")\ncov(x, y)\ncor.test(x, y)`} />
                     {hasSuccessfulOutput(corrOut) && (
                       <p className="lesson-text" style={{ marginTop: 8 }}>
                         <strong>Reading the result:</strong> The Pearson coefficient assumes a linear relationship. Spearman uses ranks and works for monotone (not necessarily linear) relationships.
@@ -1461,7 +1533,7 @@ export default function StatLabApp() {
             <>
               <Heading icon={<Dices size={18} />} title={active} description="Simulate random experiments and explore the law of large numbers." />
               <InfoBox>
-                <strong>What is this?</strong> This module simulates rolling a fair 6-sided die many times using R&apos;s random number generator.
+                <strong>What is this?</strong> This module simulates rolling a fair 6-sided die many times using R&apos;s random number generator. For Bernoulli, binomial, normal, uniform, and conditional-probability examples, choose those runnable examples in the R Playground.
                 As you increase the number of rolls, each face should appear about 1/6 of the time — this is the <em>Law of Large Numbers</em> in action.
                 <br /><strong>Try it:</strong> Start with 100 rolls, observe the uneven distribution. Then try 10 000 — the bars become much more uniform.
                 Use the same seed to get reproducible results.
@@ -1700,11 +1772,13 @@ export default function StatLabApp() {
                       <span style={{ width: `${(progress.length / exercises.length) * 100}%` }} />
                     </div>
                     <button className="link-button" onClick={() => {
-                      if (window.confirm('Reset all completed challenges? This cannot be undone.')) {
-                        setProgress([]); writeProgressPatch({ completedChallenges: [] }); setSolutionVisible(false);
+                      if (window.confirm('Reset completed lessons and challenges on this device? This cannot be undone.')) {
+                        setProgress([]); setCompletedLessons([]);
+                        writeProgressPatch({ completedChallenges: [], completedLessons: [] });
+                        setSolutionVisible(false);
                       }
                     }}>
-                      Reset progress
+                      Reset learning progress
                     </button>
                   </div>
                   {exercises.map((ex, i) => (
@@ -1780,7 +1854,7 @@ export default function StatLabApp() {
                     </div>
                   )}
                   {challengeFeedback && (
-                    <div className={`challenge-feedback${challengeFeedback.startsWith('✓') ? ' ok' : ''}`}>
+                    <div className={`challenge-feedback${challengeFeedback.startsWith('✓') ? ' ok' : ''}`} role="status" aria-live="polite">
                       {challengeFeedback}
                     </div>
                   )}
@@ -1922,18 +1996,53 @@ function highlightR(source: string): ReactNode[] {
 // ─── Data table ───────────────────────────────────────────────────────────────
 
 function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
+  const [pageIndex, setPage] = useState(0);
+  const [sort, setSort] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null);
+  const pageSize = 50;
   const cols = Object.keys(rows[0] || {});
   if (!rows.length) return <div className="empty-plot">No rows to display.</div>;
+  const sortedRows = sort ? [...rows].sort((a, b) => {
+    const left = a[sort.column], right = b[sort.column];
+    const comparison = typeof left === 'number' && typeof right === 'number'
+      ? left - right
+      : String(left ?? '').localeCompare(String(right ?? ''), undefined, { numeric: true, sensitivity: 'base' });
+    return sort.direction === 'asc' ? comparison : -comparison;
+  }) : rows;
+  const pageCount = Math.ceil(sortedRows.length / pageSize);
+  const page = Math.min(pageIndex, Math.max(0, pageCount - 1));
+  const pageRows = sortedRows.slice(page * pageSize, (page + 1) * pageSize);
+  const missingCount = rows.reduce((total, row) => total + cols.filter(column => row[column] == null || row[column] === '').length, 0);
   return (
-    <div className="table-scroll">
+    <div>
+      <div className="table-summary">{rows.length.toLocaleString()} rows · {cols.length} columns · {missingCount.toLocaleString()} missing cells</div>
+      <div className="table-scroll">
       <table>
-        <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+        <thead><tr>{cols.map(c => {
+          const firstValue = rows.find(row => row[c] != null)?.[c];
+          const kind = typeof firstValue === 'number' ? 'number' : typeof firstValue === 'boolean' ? 'logical' : 'text';
+          return <th key={c}>
+            <button className="table-sort" onClick={() => {
+              setPage(0);
+              setSort(old => old?.column === c ? { column: c, direction: old.direction === 'asc' ? 'desc' : 'asc' } : { column: c, direction: 'asc' });
+            }} aria-label={`Sort by ${c}${sort?.column === c ? `, currently ${sort.direction}ending` : ''}`}>
+              {c} <span className="table-kind">{kind}</span>{sort?.column === c ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
+            </button>
+          </th>;
+        })}</tr></thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>{cols.map(c => <td key={c}>{String(row[c] ?? 'NA')}</td>)}</tr>
+          {pageRows.map((row, i) => (
+            <tr key={page * pageSize + i}>{cols.map(c => <td key={c}>{String(row[c] ?? 'NA')}</td>)}</tr>
           ))}
         </tbody>
       </table>
+      </div>
+      {pageCount > 1 && <div className="table-pagination" aria-label="Dataset table pages">
+        <span>Rows {(page * pageSize + 1).toLocaleString()}–{Math.min((page + 1) * pageSize, rows.length).toLocaleString()} of {rows.length.toLocaleString()}</span>
+        <div>
+          <button className="tool" onClick={() => setPage(value => Math.max(0, value - 1))} disabled={page === 0}>Previous</button>
+          <button className="tool" onClick={() => setPage(value => Math.min(pageCount - 1, value + 1))} disabled={page === pageCount - 1}>Next</button>
+        </div>
+      </div>}
     </div>
   );
 }

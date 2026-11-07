@@ -23,6 +23,13 @@ function rStringLiteral(value: string) {
 
 function consoleProgram(source: string) {
   return `local({
+    .statlab_graphics <- graphics::par(no.readonly = TRUE)
+    on.exit(graphics::par(.statlab_graphics), add = TRUE)
+    graphics::par(
+      bg = "#ffffff", fg = "#283548", col.axis = "#283548",
+      col.lab = "#172033", col.main = "#111827", col = "#7655d9",
+      cex.axis = 0.9, cex.lab = 1, cex.main = 1
+    )
     .statlab_expressions <- tryCatch(parse(text = ${rStringLiteral(source)}), error = function(e) {
       cat("STATLAB_ERROR:", conditionMessage(e), "\\n", sep = "")
       NULL
@@ -92,7 +99,9 @@ export function initializeWebR(onStatus?: (status: 'initializing' | 'ready' | 'e
 export async function executeR(code: string, runtime?: WebRInstance): Promise<RRunResult> {
   const activeRuntime = runtime ?? await initializeWebR();
   return serializeRSession(async () => {
-    const shelter = await new activeRuntime.Shelter();
+    // A queued reset may have replaced the runtime after this call was made.
+    const currentRuntime = runtimePromise ? await runtimePromise : activeRuntime;
+    const shelter = await new currentRuntime.Shelter();
     const started = performance.now();
     try {
       const result = await shelter.captureR(consoleProgram(code), {
@@ -119,17 +128,28 @@ export async function executeR(code: string, runtime?: WebRInstance): Promise<RR
 export async function executeRArray(code: string, runtime?: WebRInstance): Promise<unknown[]> {
   const activeRuntime = runtime ?? await initializeWebR();
   return serializeRSession(async () => {
-    const result = await activeRuntime.evalR(code);
+    const currentRuntime = runtimePromise ? await runtimePromise : activeRuntime;
+    const result = await currentRuntime.evalR(code);
     try {
       if ('toArray' in result && typeof result.toArray === 'function') return await result.toArray();
       return [String(result)];
     } finally {
-      await activeRuntime.destroy(result);
+      await currentRuntime.destroy(result);
     }
   });
 }
 
 export async function resetRSession(onStatus?: (status: 'initializing' | 'ready' | 'error') => void) {
-  runtimePromise = undefined;
-  return initializeWebR(onStatus);
+  return serializeRSession(async () => {
+    const previous = runtimePromise;
+    if (previous) {
+      try {
+        (await previous).close();
+      } catch {
+        // A failed runtime has no live worker to preserve; retry initialization below.
+      }
+    }
+    runtimePromise = undefined;
+    return initializeWebR(onStatus);
+  });
 }
