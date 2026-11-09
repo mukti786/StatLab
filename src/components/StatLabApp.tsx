@@ -56,6 +56,10 @@ const examples = [
     code: '# Data frames — R\'s tabular data structure\nstudents <- data.frame(\n  name  = c("Asha", "Rahul", "Maya"),\n  score = c(82, 75, 94),\n  grade = c("B", "C", "A")\n)\n\nstudents            # print the table\nmean(students$score) # column mean\nsubset(students, score >= 80) # filter rows',
   },
   {
+    title: 'Data frame operations', group: 'Data frames',
+    code: '# Inspect, filter, sort, add, and remove columns\nstudents <- data.frame(\n  name = c("Asha", "Rahul", "Maya", "Dev"),\n  score = c(82, 75, 94, NA),\n  group = c("A", "B", "A", "B")\n)\nstr(students)\nstudents$score                 # select one column\nsubset(students, score >= 80)  # filter rows\nstudents[order(students$score, na.last = TRUE), ] # sort rows\nstudents$passed <- students$score >= 60 # add a column\nstudents$group <- NULL          # remove a column\nmean(students$score, na.rm = TRUE) # handle missing values',
+  },
+  {
     title: 'Probability simulation', group: 'Probability',
     code: '# Simulate 1 000 coin flips\n# set.seed makes results reproducible\nset.seed(42)\ncoin_flips <- sample(c("Heads", "Tails"), size = 1000, replace = TRUE)\ntable(coin_flips)   # frequency table\nprop.table(table(coin_flips)) # proportions',
   },
@@ -90,6 +94,10 @@ const examples = [
   {
     title: 'Conditional probability', group: 'Probability',
     code: '# A = even outcome; B = outcome greater than 3\noutcomes <- 1:6\nA <- outcomes %% 2 == 0\nB <- outcomes > 3\nmean(A)                       # P(A)\nmean(B)                       # P(B)\nmean(A & B) / mean(B)         # P(A | B)',
+  },
+  {
+    title: 'Combinations and permutations', group: 'Probability',
+    code: '# Choose 2 people from 5 when order does not matter\nchoose(5, 2)\n\n# Arrange 3 people selected from 5 when order matters\nfactorial(5) / factorial(5 - 3)\n\n# Check the combination count by listing the selections\ncombn(letters[1:5], 2)',
   },
 ];
 
@@ -327,6 +335,7 @@ export default function StatLabApp() {
   const [search,     setSearch]     = useState('');
   const [csvError,   setCsvError]   = useState('');
   const [datasetOut, setDatasetOut] = useState<ROutput[]>([]);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   // ── Probability Lab (isolated) ─────────────────────────────────────────────
   const [probN,         setProbN]         = useState(1000);
@@ -401,6 +410,10 @@ export default function StatLabApp() {
       consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
     }
   }, [history, running, error]);
+
+  useEffect(() => () => {
+    images.forEach(image => image.close());
+  }, [images]);
 
   // Give each learning workspace a bookmarkable hash route while keeping the
   // shared R session and editor mounted during client-side navigation.
@@ -694,8 +707,20 @@ export default function StatLabApp() {
       if (parsed.length > 5000) throw new Error('CSV is limited to 5 000 rows.');
       setTableRows(parsed);
       setDataset(file.name);
+      setSearch('');
+      setDatasetOut([]);
       saveActivity(`Imported ${file.name}`);
     } catch (e) { setCsvError(e instanceof Error ? e.message : 'Could not read this CSV'); }
+    finally { if (csvInputRef.current) csvInputRef.current.value = ''; }
+  };
+
+  const resetDataset = () => {
+    setTableRows(sampleRows);
+    setDataset('Student marks');
+    setSearch('');
+    setCsvError('');
+    setDatasetOut([]);
+    if (csvInputRef.current) csvInputRef.current.value = '';
   };
 
   const exportCsv = () => {
@@ -1710,9 +1735,10 @@ export default function StatLabApp() {
               <div className="toolbar">
                 <select
                   className="tool-select"
-                  value={dataset === 'Monthly expenses' ? 'Monthly expenses' : 'Student marks'}
+                  value={dataset === 'Monthly expenses' ? 'Monthly expenses' : dataset === 'Student marks' ? 'Student marks' : 'imported'}
                   onChange={e => runDataset(e.target.value, setDatasetOut)}
                 >
+                  {dataset !== 'Student marks' && dataset !== 'Monthly expenses' && <option value="imported" disabled>Imported · {dataset}</option>}
                   <option>Student marks</option>
                   <option>Monthly expenses</option>
                 </select>
@@ -1721,9 +1747,10 @@ export default function StatLabApp() {
                   <input className="search-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search rows…" />
                 </label>
                 <label className="tool upload-label">Import CSV
-                  <input type="file" accept=".csv,text/csv" onChange={e => loadCsv(e.target.files?.[0])} />
+                  <input ref={csvInputRef} type="file" accept=".csv,text/csv" onChange={e => loadCsv(e.target.files?.[0])} />
                 </label>
                 <button className="tool" onClick={exportCsv}><Download size={13} />Export CSV</button>
+                <button className="tool" onClick={resetDataset}><RotateCcw size={13} />Reset dataset</button>
                 {/* CSV-to-R bridge: sends current tableRows to WebR as a data.frame */}
                 <button className="primary" onClick={runCsvAnalysis} disabled={runtimeStatus !== 'ready' || tableRows.length === 0}>
                   <Play size={13} />Analyze with R

@@ -11,16 +11,16 @@ StatLab was developed as an independent student learning and engineering project
 ## Features
 
 - Client-side R execution through WebR, including printed results, warnings, messages, errors, and base R graphics where supported.
-- R playground with starter examples, syntax-colored editor, Ctrl/Cmd+Enter, copy, reset, clear output, locally remembered code, and `.R` download.
+- R playground with syntax-colored editor, starter examples for R basics, data frames, statistics, probability, control flow, and plots, Ctrl/Cmd+Enter, copy/download, separate code/session resets, readable console history, locally remembered code, and `.R` download.
 - Interactive lessons for R fundamentals, vectors and matrices, and data frames.
 - A guided, runnable 20-lesson path from first expressions through data manipulation and introductory statistics.
 - R-backed descriptive statistics, seeded dice simulation, and histogram bin calculations.
-- Dataset explorer with teaching datasets, search, and local CSV import/export (2 MB import limit).
+- Dataset explorer with teaching datasets, search, sortable and paginated results, missing-cell and column-type summaries, local CSV import/export (2 MB / 5,000 row limit), and a restore-sample action.
 - Nine R-checked challenges across beginner, intermediate, and advanced levels, with hints, solutions, and explanations.
 - Versioned browser-local learning state for lesson and challenge completion, recent modules, activity, run count, theme, and editor code. Older unversioned progress migrates safely. No account is required.
 - Responsive dark/light interface with a mobile navigation drawer.
 
-The interface uses Recharts to display chart-ready counts and values computed in R. The charts themselves are rendered in the browser. CSV import is browser-local; imported tables can be inspected, exported, and converted into real R data frames for `str()` and `summary()` analysis.
+The interface uses Recharts to display chart-ready counts and values computed in R. Base R plots use a contrast-friendly white plotting canvas within the dark interface. Charts are rendered in the browser. CSV import is browser-local; imported tables can be inspected, sorted, exported, and converted into real R data frames for `str()` and `summary()` analysis.
 
 ## Screenshots
 
@@ -30,7 +30,7 @@ The files in `screenshots/` show the previous dashboard and should not be used a
 
 https://stat-lab-ruddy.vercel.app/
 
-This URL was present in the repository before the audit; the deployment was not checked and may be out of date.
+The URL is the existing Vercel deployment. The current source changes are local and have not been deployed; verify the deployment after publishing a new build.
 
 ## Technology stack
 
@@ -116,7 +116,7 @@ npm run build
 npm start
 ```
 
-`npm run build` first copies `r/*.R` to `public/r/`. The Node runtime script is available as `npm run test:runtime`; it currently fails on Windows Node 24 because WebR 0.6.0 passes a `file://` worker URL to Node's `Worker` constructor (`ERR_WORKER_PATH`). This Node-only limitation does not affect the browser runtime, which is verified manually in StatLab. The native R script may be run with `Rscript r/tests/test-statlab.R` if R is installed.
+`npm run build` first copies `r/*.R` to `public/r/`. The Node runtime script is available as `npm run test:runtime`; on Windows Node 24, WebR 0.6.0's Node worker path handling still fails before R initializes. This Node-only harness limitation does not affect the browser runtime; the production browser build was manually exercised with real R execution. The native R script may be run with `Rscript r/tests/test-statlab.R` if R is installed.
 
 ## Deploying to Vercel
 
@@ -139,11 +139,11 @@ WebR is a real R runtime compiled to WebAssembly. It supports normal base R expr
 
 ## Tests and verification
 
-- `npm test` runs the Vitest suite for CSV parsing, validation, R string escaping, round trips, and versioned progress storage/migration.
+- `npm test` runs the Vitest suite for CSV parsing, validation, R string escaping, round trips, and versioned progress storage/migration/reset.
 - `npm run lint` runs ESLint.
 - `npm run typecheck` runs TypeScript strict checking.
 - `npm run build` compiles the production Next.js app and prepares served R files.
-- `npm run test:runtime` is configured for direct WebR checks in Node, but has the Windows worker URL limitation described above.
+- `npm run test:runtime` is configured for direct WebR checks in Node, but has the Windows Node 24 worker URL limitation described above; browser tests remain the verification path for this browser runtime.
 - `Rscript r/tests/test-statlab.R` is a native R test script and requires an installed R distribution.
 
 The playground and lesson code have been exercised in a real browser using WebR: vector `mean()`/`sd()` returned 30 and 15.81139; the first lesson returned 5 and 4.666667; repeated runs retained the same R environment; and an undefined object displayed an R error. Descriptive statistics, correlation, a one-sample t-test, regression, dice simulation, histogram, boxplot, built-in datasets, and a quoted multiline CSV converted to an R data frame were also exercised. A challenge rejected an invalid answer and accepted a valid answer. The local learning trail restored runs, module visits, lesson and challenge progress after reload. Simulation results come from the actual seeded R runtime, not hardcoded UI values.

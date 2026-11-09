@@ -1,23 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { Worker as NodeWorker } from 'node:worker_threads';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebR } from 'webr';
 
-// WebR 0.6.0 concatenates baseUrl into a string before calling Node's Worker.
-// Node 24 requires file URLs as URL objects, so adapt only this Node test harness.
-globalThis.Worker = class NodeWorkerWithFileUrl extends NodeWorker {
-  constructor(specifier, options) {
-    const workerUrl = typeof specifier === 'string' && specifier.startsWith('file:')
-      ? new URL(specifier)
-      : typeof specifier === 'string' && /^[a-z]:[\\/]/i.test(specifier)
-        ? pathToFileURL(specifier)
-        : specifier;
-    super(workerUrl, options);
-  }
-};
-const workerDirectory = fileURLToPath(new URL('../node_modules/webr/dist/', import.meta.url));
-const runtimeOptions = { baseUrl: `${workerDirectory}/` };
+const runtimeOptions = { baseUrl: new URL('../node_modules/webr/dist/', import.meta.url).href };
 let runtime = new WebR(runtimeOptions);
 await runtime.init();
 try {
